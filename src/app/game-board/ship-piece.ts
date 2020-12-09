@@ -1,4 +1,4 @@
-import { GameObject, Movement } from './game-object';
+import { GameObject, Movement, SingleMoveGameObject } from './game-object';
 import { isNull, isUndefined } from 'util';
 
 export class Point {
@@ -29,7 +29,7 @@ export class Shape {
     }
 }
 
-export class ShipPiece extends GameObject {}
+export class ShipPiece extends SingleMoveGameObject {}
 
 export class Highwind extends ShipPiece {
     public static readonly DEFAULT_COLOR: string = "blue";

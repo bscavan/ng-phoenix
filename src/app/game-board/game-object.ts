@@ -32,6 +32,10 @@ export class GameObject {
             // If the nextMoveIndex refers to an item outside the bounds of the array, loop back around again.
             this.nextMoveIndex = this.nextMoveIndex % this.movementPattern.length;
 
+            if(this.nextMoveIndex < 0 || this.nextMoveIndex >= this.movementPattern.length) {
+                return;
+            }
+
             // Move the GameObject.
             this.moveGameObject(this.movementPattern[this.nextMoveIndex]);
 
@@ -97,5 +101,30 @@ export class Movement {
         }
 
         return output;
+    }
+}
+
+// TODO: Split these classes off into separate files.
+
+/**
+ * This is a GameObject that can have a series of moves assigned to it which
+ * are then executed in order. Once each  move is executed it is removed from
+ * the movementPattern.
+ */
+export class SingleMoveGameObject extends GameObject {
+    addMovement(nextMove: Movement) {
+        this.movementPattern.push(nextMove);
+    }
+
+    takeNextMove() {
+        // Execute the next movement.
+        super.takeNextMove();
+        // Remove that movement from movementPattern
+        this.movementPattern.splice(0, 1);
+        this.nextMoveIndex--;
+    }
+
+    overwriteNextMove(nextMove: Movement) {
+        this.movementPattern = [nextMove];
     }
 }

@@ -7,7 +7,7 @@ import { IPiece } from './IPiece';
 import { Point, ShipPiece, Highwind, BlockHead } from './ship-piece';
 import { isNull } from 'util';
 import { CustomCanvas } from './custom-canvas';
-import { GameObject } from './game-object';
+import { GameObject, Movement, SingleMoveGameObject } from './game-object';
 
 export const MILLISECONDS_PER_WORLD_TICK = 1000;
 
@@ -100,7 +100,7 @@ export class GameBoardComponent implements OnInit {
       let indexOfPiece = currentLayer.indexOf(newPiece);
 
       // If the GameObject doesn't already exist on this layer, add it.
-      if(indexOfPiece < 0) {
+      if(indexOfPiece > 0) {
         currentLayer.push(newPiece);
       }
     }
@@ -147,7 +147,8 @@ export class GameBoardComponent implements OnInit {
     }
     */
 
-    let newPoint: Point = null;
+    let positionalShift: Movement = null;
+    // TODO: Add diagonal movement later on.
 
     // This can be modified with a "speed" multiplier
     let moveStep = 1;
@@ -156,19 +157,19 @@ export class GameBoardComponent implements OnInit {
     switch(event.keyCode) {
       // TODO: event.preventDefault();
       case KeyCodes.LEFT:
-        newPoint = new Point(currentPosition.xCoordinate - moveStep, currentPosition.yCoordinate);
+        positionalShift = new Movement(0 - moveStep, 0);
         break;
 
       case KeyCodes.RIGHT:
-        newPoint = new Point(currentPosition.xCoordinate + moveStep, currentPosition.yCoordinate);
+        positionalShift = new Movement(moveStep, 0);
         break;
 
       case KeyCodes.UP:
-        newPoint = new Point(currentPosition.xCoordinate, currentPosition.yCoordinate - moveStep);
+        positionalShift = new Movement(0, 0 - moveStep);
         break;
 
       case KeyCodes.DOWN:
-        newPoint = new Point(currentPosition.xCoordinate, currentPosition.yCoordinate + moveStep);
+        positionalShift = new Movement(0, moveStep);
         break;
     }
 
@@ -176,9 +177,8 @@ export class GameBoardComponent implements OnInit {
 
     // TODO: Iterate over the other items on the ship's layer and confirm there won't be any collisions!
 
-    if(isNull(newPoint) == false) {
-      this.ship.moveToPoint(newPoint);
-      this.redrawCanvas();
+    if(isNull(positionalShift) == false) {
+      this.ship.overwriteNextMove(positionalShift);
     }
   }
 
@@ -188,7 +188,8 @@ export class GameBoardComponent implements OnInit {
   executeWorldTick() {
     this.allGameItems.forEach((currentObjectList: GameObject[]) => {
       currentObjectList.forEach((currentObject: GameObject) => {
-        if(isNull(currentObject.movementPattern) === false) {
+        if(isNull(currentObject.movementPattern) === false
+        && currentObject.movementPattern.length > 0) {
           // TODO: Handle potential colisions, stepping out of bounds, etc. here.
           currentObject.takeNextMove();
         }
