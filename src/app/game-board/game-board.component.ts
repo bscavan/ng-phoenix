@@ -9,6 +9,8 @@ import { isNull } from 'util';
 import { CustomCanvas } from './custom-canvas';
 import { GameObject } from './game-object';
 
+export const MILLISECONDS_PER_WORLD_TICK = 1000;
+
 @Component({
   selector: 'game-board',
   templateUrl: './game-board.component.html',
@@ -23,10 +25,14 @@ export class GameBoardComponent implements OnInit {
   points: number;
   lines: number;
   level: number;
-  //board: number[][];
-  //piece: Piece;
   ship: ShipPiece;
   startPosition: Point = new Point(5, 2);
+
+  /**
+   * This is the reference for the interval responsible for tracking real time
+   * and scheduling all actions in the game.
+   */
+  private gameClockId;
 
   // The key is the layer each GameObject[] resides on. Higher layers are drawn later, meaning they can cover up lower ones.
   public allGameItems: Map<number, GameObject[]> = new Map<number, GameObject[]>();
@@ -44,6 +50,18 @@ export class GameBoardComponent implements OnInit {
 
   ngOnInit() {
     this.initBoard();
+
+    // FIXME: This should only start up when the Play button is pressed!
+    this.gameClockId = setInterval(() => {
+      this.executeWorldTick();
+      this.redrawCanvas();
+    }, MILLISECONDS_PER_WORLD_TICK);
+  }
+
+  ngOnDestroy() {
+    if (this.gameClockId) {
+      clearInterval(this.gameClockId);
+    }
   }
 
   initBoard() {
@@ -60,14 +78,8 @@ export class GameBoardComponent implements OnInit {
     this.gameCanvas.scale(BLOCK_SIZE, BLOCK_SIZE);
   }
 
+  // TODO: Rename this method.
   play() {
-    //.board = this.gameService.getEmptyBoard(ROWS, COLS);
-    //this.piece = new Piece(this.gameCanvas);
-    //this.piece.draw();
-
-    // TODO: Make a point named startPosition where the ship will begin
-    // TODO: Make a basic ship (named Highwind) that extends ShipPiece and has a shape.
-    //this.ship = new ShipPiece(this.gameCanvas, startPosition)
     this.ship = new Highwind(this.startPosition);
     this.addGameObject(this.ship, PLAYER_LAYER);
 
@@ -76,7 +88,6 @@ export class GameBoardComponent implements OnInit {
     let firstBlockhead = new BlockHead(new Point(0, 0));
     this.addGameObject(firstBlockhead, 1);
 
-    //this.gameCanvas.draw(this.ship);
     this.redrawCanvas();
   }
 
@@ -120,6 +131,7 @@ export class GameBoardComponent implements OnInit {
   @HostListener('window:keydown', ['$event'])
   keyEvent(event: KeyboardEvent) {
 
+    // I'm only keeping this around as an example of the syntax from that Tetris game demo.
     /*
     if (this.moves[event.keyCode]) {
       // If the keyCode exists in our moves stop the event from bubbling.
@@ -165,19 +177,24 @@ export class GameBoardComponent implements OnInit {
     // TODO: Iterate over the other items on the ship's layer and confirm there won't be any collisions!
 
     if(isNull(newPoint) == false) {
-      /*
-      this.gameCanvas.erase(this.ship);
-
-      this.ship.moveToPoint(newPoint);
-
-      this.gameCanvas.draw(this.ship);
-      */
       this.ship.moveToPoint(newPoint);
       this.redrawCanvas();
     }
   }
 
-
+  /**
+   * For every layer, for each GameObject in that layer, if it has a movementPattern, apply it.
+   */
+  executeWorldTick() {
+    this.allGameItems.forEach((currentObjectList: GameObject[]) => {
+      currentObjectList.forEach((currentObject: GameObject) => {
+        if(isNull(currentObject.movementPattern) === false) {
+          // TODO: Handle potential colisions, stepping out of bounds, etc. here.
+          currentObject.takeNextMove();
+        }
+      })
+    });
+  }
 
   /*
    * TODO: Call this method once each tick of the Clock.

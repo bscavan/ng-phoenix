@@ -1,4 +1,4 @@
-import { GameObject } from './game-object';
+import { GameObject, Movement } from './game-object';
 import { isNull, isUndefined } from 'util';
 
 export class Point {
@@ -41,7 +41,7 @@ export class Highwind extends ShipPiece {
         //let points: Point[] = [new Point(0, 1), new Point(1, 1), new Point(1, 0), new Point(0, 0)];
         let shipShapes: Shape[] = [new Shape(points, Highwind.DEFAULT_COLOR, Highwind.DEFAULT_OUTLINE_COLOR)];
 
-        super(upperLeftCorner, shipShapes);
+        super(upperLeftCorner, shipShapes, null);
     }
 }
 
@@ -53,7 +53,8 @@ export class BlockHead extends GameObject {
         //let points: Point[] = [new Point(0, 1), new Point(1, 0), new Point(2, 1)];
         let points: Point[] = [new Point(0, 1), new Point(1, 1), new Point(1, 0), new Point(0, 0)];
         let shipShapes: Shape[] = [new Shape(points, BlockHead.DEFAULT_COLOR, BlockHead.DEFAULT_OUTLINE_COLOR)];
+        let backAndForth: Movement[] = [new Movement(1, 0), new Movement(1, 0), new Movement(-1, 0), new Movement(-1, 0)];
 
-        super(upperLeftCorner, shipShapes);
+        super(upperLeftCorner, shipShapes, backAndForth);
     }
 }
