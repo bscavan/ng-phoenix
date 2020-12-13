@@ -29,7 +29,18 @@ export class Shape {
     }
 }
 
-export class ShipPiece extends SingleMoveGameObject {}
+export class ShipPiece extends SingleMoveGameObject {
+    /**
+     * The number of units of space this GameObject can move in one action.
+     * // FIXME: This should probably instead be a measurent of distance per speed? I don't know yet.
+     */
+    baseMovementStep: number = 0;
+
+    /**
+     * The number seconds of in-game time it takes this GameObject to make one movement action.
+     */
+    baseMovementDuration: number = 0;
+}
 
 export class Highwind extends ShipPiece {
     public static readonly DEFAULT_COLOR: string = "blue";
@@ -42,6 +53,10 @@ export class Highwind extends ShipPiece {
         let shipShapes: Shape[] = [new Shape(points, Highwind.DEFAULT_COLOR, Highwind.DEFAULT_OUTLINE_COLOR)];
 
         super(upperLeftCorner, shipShapes, null);
+        // Setting time and movement-determining values here.
+        this.setTimeFactor(1);
+        this.baseMovementStep = 1;
+        this.baseMovementDuration = 1;
     }
 }
 
@@ -53,7 +68,8 @@ export class BlockHead extends GameObject {
         //let points: Point[] = [new Point(0, 1), new Point(1, 0), new Point(2, 1)];
         let points: Point[] = [new Point(0, 1), new Point(1, 1), new Point(1, 0), new Point(0, 0)];
         let shipShapes: Shape[] = [new Shape(points, BlockHead.DEFAULT_COLOR, BlockHead.DEFAULT_OUTLINE_COLOR)];
-        let backAndForth: Movement[] = [new Movement(1, 0), new Movement(1, 0), new Movement(-1, 0), new Movement(-1, 0)];
+        let backAndForth: Movement[] = [new Movement(1, 0, 1), new Movement(1, 0, 1),
+            new Movement(-1, 0, 1), new Movement(-1, 0, 1)];
 
         super(upperLeftCorner, shipShapes, backAndForth);
     }

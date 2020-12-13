@@ -150,26 +150,27 @@ export class GameBoardComponent implements OnInit {
     let positionalShift: Movement = null;
     // TODO: Add diagonal movement later on.
 
-    // This can be modified with a "speed" multiplier
-    let moveStep = 1;
     let currentPosition = this.ship.upperLeftCorner;
 
     switch(event.keyCode) {
       // TODO: event.preventDefault();
+
+      // Set the ship's next movement to be distance one action is expected to
+      // require and take however long it was configured to take.
       case KeyCodes.LEFT:
-        positionalShift = new Movement(0 - moveStep, 0);
+        positionalShift = new Movement(0 - this.ship.baseMovementStep, 0, this.ship.baseMovementDuration);
         break;
 
       case KeyCodes.RIGHT:
-        positionalShift = new Movement(moveStep, 0);
+        positionalShift = new Movement(this.ship.baseMovementStep, 0, this.ship.baseMovementDuration);
         break;
 
       case KeyCodes.UP:
-        positionalShift = new Movement(0, 0 - moveStep);
+        positionalShift = new Movement(0, 0 - this.ship.baseMovementStep, this.ship.baseMovementDuration);
         break;
 
       case KeyCodes.DOWN:
-        positionalShift = new Movement(0, moveStep);
+        positionalShift = new Movement(0, this.ship.baseMovementStep, this.ship.baseMovementDuration);
         break;
     }
 
