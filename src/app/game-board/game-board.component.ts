@@ -1,13 +1,11 @@
 import { Component, ViewChild, ElementRef, OnInit, HostListener } from '@angular/core';
 import { COLS, BLOCK_SIZE, ROWS, PLAYER_LAYER } from '../constants';
-import { Piece } from './piece';
 import { GameService } from '../game-service';
 import { KeyCodes } from './KeyCodes';
-import { IPiece } from './IPiece';
 import { Point, ShipPiece, Highwind, BlockHead } from './ship-piece';
 import { isNull } from 'util';
 import { CustomCanvas } from './custom-canvas';
-import { GameObject, Movement, SingleMoveGameObject } from './game-object';
+import { GameObject, Movement } from './game-object';
 
 export const MILLISECONDS_PER_WORLD_TICK = 1000;
 
@@ -17,6 +15,15 @@ export const MILLISECONDS_PER_WORLD_TICK = 1000;
   styleUrls: ['./game-board.component.css']
 })
 export class GameBoardComponent implements OnInit {
+  // TODO: Make a way of running a reverse-lookup for coordinates? To see what, if anything, exists at a point.
+  /**
+   * TODO: Add a second canvas to this class. All "draw" commands are executed
+   * on the "secondary" canvas, and then after they've all been finished, it is
+   * swapped with "primary" canvas, which becomes the new secondary one. This
+   * will cause all visual updates to occur at the same time instead of
+   * sequentially.
+   */
+
   // Get reference to the canvas.
   @ViewChild('board', { static: true })
   canvas: ElementRef<HTMLCanvasElement>;
@@ -49,9 +56,10 @@ export class GameBoardComponent implements OnInit {
   constructor(private gameService: GameService) {}
 
   ngOnInit() {
-    this.initBoard();
+    this.initCanvas();
+  }
 
-    // FIXME: This should only start up when the Play button is pressed!
+  startGameClock() {
     this.gameClockId = setInterval(() => {
       this.executeWorldTick();
       this.redrawCanvas();
@@ -64,7 +72,7 @@ export class GameBoardComponent implements OnInit {
     }
   }
 
-  initBoard() {
+  initCanvas() {
     // Get the 2D context that we draw on.
     this.gameCanvas = new CustomCanvas(this.canvas.nativeElement.getContext('2d'));
 
@@ -80,6 +88,7 @@ export class GameBoardComponent implements OnInit {
 
   // TODO: Rename this method.
   play() {
+    this.startGameClock();
     this.ship = new Highwind(this.startPosition);
     this.addGameObject(this.ship, PLAYER_LAYER);
 
@@ -150,8 +159,6 @@ export class GameBoardComponent implements OnInit {
     let positionalShift: Movement = null;
     // TODO: Add diagonal movement later on.
 
-    let currentPosition = this.ship.upperLeftCorner;
-
     switch(event.keyCode) {
       // TODO: event.preventDefault();
 
@@ -177,6 +184,12 @@ export class GameBoardComponent implements OnInit {
     // TODO: Move the other items in the world here, enemy ships, projectiles, etc.
 
     // TODO: Iterate over the other items on the ship's layer and confirm there won't be any collisions!
+    /**
+     * VERY IMPORTANT: I can't just check to see if any two items collide at
+     * the end of a tick! I need to know to if any of them pass through each
+     * other _during_ the tick!
+     * (This is a bit simpler since only objects on the same layer can collide)
+     */
 
     if(isNull(positionalShift) == false) {
       this.ship.overwriteNextMove(positionalShift);

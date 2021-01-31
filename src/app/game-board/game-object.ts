@@ -120,9 +120,17 @@ export class GameObject {
                 // Increase the time progressed into the current move by the amount of time spent here.
                 this.timeIntoCurrentMove = this.timeIntoCurrentMove + timeSpentInCurrentMovement;
 
-                // If the current move has been completed then increment to the next move and reset this.timeIntoCurrentMove
+                // If the current move has been completed
                 if(this.timeIntoCurrentMove >= currentMove.duration) {
-                    this.nextMoveIndex++;
+                    if(currentMove.getRunOnce()) {
+                        // Remove the move that was just completed.
+                        this.movementPattern.splice(this.nextMoveIndex, 1);
+                    } else {
+                        // Increment to the next move, keeping the current move where it is.
+                        this.nextMoveIndex++;
+                    }
+
+                    // reset this.timeIntoCurrentMove because we just finished a move.
                     this.timeIntoCurrentMove = 0;
                 }
             }
@@ -159,6 +167,7 @@ export class Movement {
     // Measured in px, unless the canvas has been scaled up? (Well in that case we wouldn't care anyway, right?)
     xMovement: number;
     yMovement: number;
+    runOnce: boolean = false;
 
     /**
      * Length of in-game seconds this movement will take from start to finish.
@@ -169,6 +178,21 @@ export class Movement {
         this.xMovement = xMovement;
         this.yMovement = yMovement;
         this.duration = duration;
+    }
+
+    public getRunOnce(): boolean {
+        return this.runOnce;
+    }
+
+    public setRunOnce(runOnce: boolean) {
+        this.runOnce = runOnce;
+    }
+}
+
+export class SingleMovement extends Movement {
+    constructor(xMovement: number, yMovement: number, duration: number) {
+        super(xMovement, yMovement, duration);
+        this.setRunOnce(true);
     }
 }
 
@@ -181,18 +205,23 @@ export class Movement {
  */
 export class SingleMoveGameObject extends GameObject {
     addMovement(nextMove: Movement) {
+        nextMove.setRunOnce(true);
         this.movementPattern.push(nextMove);
     }
 
     takeNextMove() {
         // Execute the next movement.
         super.takeNextMove();
-        // Remove that movement from movementPattern
-        this.movementPattern.splice(0, 1);
-        this.nextMoveIndex--;
+
+        // In the event that an error caused nextMoveIndex to become less than zero, set it to zero here.
+        if(this.nextMoveIndex < 0) {
+            this.nextMoveIndex = 0;
+        }
     }
 
     overwriteNextMove(nextMove: Movement) {
         this.movementPattern = [nextMove];
+        this.nextMoveIndex = 0;
+        this.timeIntoCurrentMove = 0;
     }
 }

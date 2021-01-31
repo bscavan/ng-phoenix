@@ -30,6 +30,7 @@ export class Shape {
 }
 
 export class ShipPiece extends SingleMoveGameObject {
+    // FIXME: Shouldn't these values be parameters for the constructor?
     /**
      * The number of units of space this GameObject can move in one action.
      * // FIXME: This should probably instead be a measurent of distance per speed? I don't know yet.

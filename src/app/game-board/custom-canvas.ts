@@ -3,8 +3,7 @@ import { Shape, Point } from './ship-piece';
 
 export class CustomCanvas {
     public static readonly DEFAULT_BACKGROUND_COLOR = "white";
-    // TODO: Add a collection of all of the items on the game board here?
-    // Give it a way of running a reverse-lookup for coordinates? To see what, if anything, exists at a point.
+
     underlyingCanvas: CanvasRenderingContext2D;
     backgroundColor: string = CustomCanvas.DEFAULT_BACKGROUND_COLOR;
 
