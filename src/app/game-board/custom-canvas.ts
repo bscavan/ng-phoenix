@@ -41,7 +41,7 @@ export class CustomCanvas {
     }
 
     draw(item: GameObject) {
-        item.shapes.forEach((currentShape: Shape) => {
+        item.getShapes().forEach((currentShape: Shape) => {
             if(currentShape.exteriorCorners.length > 0) {
                 this.underlyingCanvas.fillStyle = currentShape.color;
                 this.underlyingCanvas.strokeStyle = currentShape.outlineColor;
@@ -69,7 +69,7 @@ export class CustomCanvas {
     erase(item: GameObject) {
         this.clearCanvas();
 
-        item.shapes.forEach((currentShape: Shape) => {
+        item.getShapes().forEach((currentShape: Shape) => {
             if(currentShape.exteriorCorners.length > 0) {
                 /*
                  * TODO: In the future backgrounds may be customized to be multiple colors and/or patterns.

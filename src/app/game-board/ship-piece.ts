@@ -1,5 +1,6 @@
 import { GameObject, Movement, SingleMoveGameObject } from './game-object';
 import { isNull, isUndefined } from 'util';
+import { AxisAlignedBoundingBox } from '../intersection-utility';
 
 export class Point {
     xCoordinate: number;
@@ -26,6 +27,45 @@ export class Shape {
         } else {
             this.outlineColor = outlineColor;
         }
+    }
+
+    // TODO: Optimize this so it only gets re-generated after the list of shapes changes.
+    generateBoundingBox(): AxisAlignedBoundingBox {
+        let highestNorth = 0;
+        let lowestSouth = 0;
+        let currentPosition_Y = 0;
+
+        let farthestEast = 0;
+        let farthestWest = 0;
+        let currentPosition_X = 0;
+
+        this.exteriorCorners.forEach(currentCorner => {
+            // On screens, a greater Y is lower down
+            currentPosition_Y = currentCorner.yCoordinate;
+
+            if(currentPosition_Y < highestNorth) {
+                highestNorth = currentPosition_Y;
+            }
+
+            if(currentPosition_Y > lowestSouth) {
+                lowestSouth = currentPosition_Y;
+            }
+
+            currentPosition_X = currentCorner.xCoordinate;
+
+            if(currentPosition_X > farthestEast) {
+                farthestEast = currentPosition_X;
+            }
+
+            if(currentPosition_X < farthestWest) {
+                farthestWest = currentPosition_X;
+            }
+        });
+
+        let min = new Point(farthestWest, highestNorth);
+        let max = new Point(farthestEast, lowestSouth);
+
+        return new AxisAlignedBoundingBox(min, max);
     }
 }
 
@@ -67,7 +107,7 @@ export class BlockHead extends GameObject {
 
     constructor(upperLeftCorner: Point) {
         //let points: Point[] = [new Point(0, 1), new Point(1, 0), new Point(2, 1)];
-        let points: Point[] = [new Point(0, 1), new Point(1, 1), new Point(1, 0), new Point(0, 0)];
+        let points: Point[] = [new Point(0, 0), new Point(0, 1), new Point(1, 1), new Point(1, 0)];
         let shipShapes: Shape[] = [new Shape(points, BlockHead.DEFAULT_COLOR, BlockHead.DEFAULT_OUTLINE_COLOR)];
         let backAndForth: Movement[] = [new Movement(1, 0, 1), new Movement(1, 0, 1),
             new Movement(-1, 0, 1), new Movement(-1, 0, 1)];

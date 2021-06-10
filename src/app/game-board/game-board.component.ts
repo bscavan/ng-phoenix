@@ -6,6 +6,7 @@ import { Point, ShipPiece, Highwind, BlockHead } from './ship-piece';
 import { isNull } from 'util';
 import { CustomCanvas } from './custom-canvas';
 import { GameObject, Movement } from './game-object';
+import { AxisAlignedBoundingBox, IntersectionUtility } from '../intersection-utility';
 
 export const MILLISECONDS_PER_WORLD_TICK = 1000;
 
@@ -35,6 +36,12 @@ export class GameBoardComponent implements OnInit {
   ship: ShipPiece;
   startPosition: Point = new Point(5, 2);
 
+  // TODO: Remove these once collision detection has been confirmed to work...
+  enemy: GameObject;
+  shipsMightIntersect = false;
+  playerShipLocation = "";
+  enemyShipLocation = "";
+
   /**
    * This is the reference for the interval responsible for tracking real time
    * and scheduling all actions in the game.
@@ -61,6 +68,7 @@ export class GameBoardComponent implements OnInit {
 
   startGameClock() {
     this.gameClockId = setInterval(() => {
+      // These are the actions that are executed 
       this.executeWorldTick();
       this.redrawCanvas();
     }, MILLISECONDS_PER_WORLD_TICK);
@@ -98,6 +106,26 @@ export class GameBoardComponent implements OnInit {
     this.addGameObject(firstBlockhead, 1);
 
     this.redrawCanvas();
+
+    // TODO: Remove this section once we've automated collision detection.
+    this.enemy = firstBlockhead;
+  }
+
+  // TODO: Remove this section once we've automated collision detection.
+  public doTheyIntersect() {
+    console.log("Checking the intersecton of the ship and the enemy - GameboardComponent.doTheyIntersect() start");
+    let shipBoundingBox = this.ship.getBoundingBox();
+    let enemyBoundingBox = this.enemy.getBoundingBox();
+
+    /** 
+     * FIXME: These bounding boxes aren't getting made correctly. Their y
+     * coordinates are all wrong. Probably due to thinking that increasing
+     * y would move the item northward instead of southward.
+     */
+    this.shipsMightIntersect = IntersectionUtility.doBoundingBoxesIntersect(shipBoundingBox, enemyBoundingBox);
+    this.playerShipLocation = `Upper-left corner: [(${shipBoundingBox.upperLeft.xCoordinate}, ${shipBoundingBox.upperLeft.yCoordinate})]; Lower-right corner: [(${shipBoundingBox.lowerRight.xCoordinate}, ${shipBoundingBox.lowerRight.yCoordinate})]`;
+    this.enemyShipLocation = `Upper-left corner: [(${enemyBoundingBox.upperLeft.xCoordinate}, ${enemyBoundingBox.upperLeft.yCoordinate})]; Lower-right corner: [(${enemyBoundingBox.lowerRight.xCoordinate}, ${enemyBoundingBox.lowerRight.yCoordinate})]`;
+    console.log("GameboardComponent.doTheyIntersect() end.");
   }
 
   addGameObject(newPiece: GameObject, layer: number) {
@@ -200,6 +228,7 @@ export class GameBoardComponent implements OnInit {
    * For every layer, for each GameObject in that layer, if it has a movementPattern, apply it.
    */
   executeWorldTick() {
+    console.log("World tick start.");
     this.allGameItems.forEach((currentObjectList: GameObject[]) => {
       currentObjectList.forEach((currentObject: GameObject) => {
         if(isNull(currentObject.movementPattern) === false
@@ -209,6 +238,24 @@ export class GameBoardComponent implements OnInit {
         }
       })
     });
+    /**
+     * Currently I'm moving each piece on every layer in an arbitrary order and
+     * then checking for collisions at the end of every tick.
+     * FIXME: this isn't enough. I can't check for colisions at the end of a
+     * tick, I need to plot out each piece's next move and determine which
+     * pieces _will_ collide during the execution of their movements.
+     * This will involve making a special bounding box that involves overlaying
+     * the existing bounding box onto each spot the shape will travel (essentially
+     * tracing lines from each of the shape's edges starting position through
+     * every position they will occupy, to the end position.)
+     * If those bounding boxes intersect then we will need to walk through each
+     * moment of the two shape's journies to determine if they would ever be in
+     * the same place at the same time.
+     */
+    // TODO: once this method has been confirmed to work, upgrade it to check
+    // all relevant objects.
+    this.doTheyIntersect()
+    console.log("World tick end.");
   }
 
   /*

@@ -1,3 +1,4 @@
+import { AxisAlignedBoundingBox } from '../intersection-utility';
 import { Point, Shape } from './ship-piece';
 
 export class GameObject {
@@ -8,6 +9,9 @@ export class GameObject {
      * To be used for both drawing on the canvas and detecting colissions.
      */
     shapes: Shape[];
+
+    private boundingBox: AxisAlignedBoundingBox;
+
 
     // TODO: Later add things like firing shots (either straight ahead, at static angles, or aimed towards the player)
     /**
@@ -50,6 +54,23 @@ export class GameObject {
         this.movementPattern = movementPattern;
     }
 
+    public getShapes(): Shape[] {
+        return this.shapes;
+    }
+
+    public setShapes(newShapes: Shape[]) {
+        this.shapes = newShapes;
+        this.regenerateBoundingBox();
+    }
+
+    public getBoundingBox() {
+        if(this.boundingBox === null || this.boundingBox === undefined) {
+            this.regenerateBoundingBox();
+        }
+
+        return this.boundingBox;
+    }
+
     public getTimeFactor() {
         return this.timeFactor;
     }
@@ -88,11 +109,6 @@ export class GameObject {
             let secondsLeftInCurrentTick = this.getTimeFactor();
 
             while(secondsLeftInCurrentTick > 0) {
-                // TODO: Handle SingleMoveGameObject here. Add an escape
-                // condition if the last movement was executed, dumped from
-                // this.movementPattern and then left this.movementPattern
-                // empty.
-
                 let currentMove = this.movementPattern[this.nextMoveIndex];
                 let timeRemainingInCurrentMove = currentMove.duration - this.timeIntoCurrentMove;
                 // TODO: If timeRemainingInCurrentMove is less than or equal to zero it then we
@@ -158,6 +174,47 @@ export class GameObject {
     shiftPosition(xOffset: number, yOffset: number) {
         this.upperLeftCorner.xCoordinate = this.upperLeftCorner.xCoordinate + xOffset;
         this.upperLeftCorner.yCoordinate = this.upperLeftCorner.yCoordinate + yOffset;
+        this.regenerateBoundingBox();
+        // TODO: Determine if it is enough to simply shift the existing
+        // bounding box instead of regenerating it. That would save
+	// massively on overhead later on.
+    }
+
+    // TODO: JAVADOC
+    regenerateBoundingBox() {
+        let highestNorth = 0;
+        let lowestSouth = 0;
+
+        let farthestEast = 0;
+        let farthestWest = 0;
+
+        this.shapes.forEach(currentShape => {
+            let currentBox = currentShape.generateBoundingBox();
+
+            // Remember we're on a computer: a lower value for "y" is further north!
+            if(currentBox.upperLeft.yCoordinate < highestNorth) {
+                highestNorth = currentBox.upperLeft.yCoordinate;
+            }
+
+            // Remember we're on a computer: a greater value for "y" is further south!
+            if(currentBox.lowerRight.yCoordinate > lowestSouth) {
+                lowestSouth = currentBox.lowerRight.yCoordinate;
+            }
+
+            if(currentBox.lowerRight.xCoordinate > farthestEast) {
+                farthestEast = currentBox.lowerRight.xCoordinate;
+            }
+
+            if(currentBox.upperLeft.xCoordinate < farthestWest) {
+                farthestWest = currentBox.upperLeft.xCoordinate;
+            }
+        });
+
+        // Create two new points for the corners of the bounding box and offset them by the coordinates of this.upperLeftCorner.
+        let upperLeft = new Point(farthestWest + this.upperLeftCorner.xCoordinate, highestNorth + this.upperLeftCorner.yCoordinate);
+        let lowerRight = new Point(farthestEast + this.upperLeftCorner.xCoordinate, lowestSouth + this.upperLeftCorner.yCoordinate)
+
+        this.boundingBox = new AxisAlignedBoundingBox(upperLeft, lowerRight);
     }
 }
 
@@ -219,7 +276,10 @@ export class SingleMoveGameObject extends GameObject {
         }
     }
 
+    // TODO: Be careful with this one. It will completely delete any pre-scripted moves.
+    // In the future it might be better to non-destructively insert blocks of moves.
     overwriteNextMove(nextMove: Movement) {
+        nextMove.setRunOnce(true);
         this.movementPattern = [nextMove];
         this.nextMoveIndex = 0;
         this.timeIntoCurrentMove = 0;
