@@ -1,5 +1,5 @@
 import { Component, ViewChild, ElementRef, OnInit, HostListener } from '@angular/core';
-import { COLS, BLOCK_SIZE, ROWS, PLAYER_LAYER } from '../constants';
+import { COLS, BLOCK_SIZE, ROWS, PLAYER_LAYER, PLAYER_PROJECTILE_LAYER, ENEMY_LAYER, ENEMY_PROJECTILE_LAYER } from '../constants';
 import { GameService } from '../game-service';
 import { KeyCodes } from './KeyCodes';
 import { Point, ShipPiece, Highwind, BlockHead } from './ship-piece';
@@ -37,10 +37,10 @@ export class GameBoardComponent implements OnInit {
   startPosition: Point = new Point(5, 2);
 
   // TODO: Remove these once collision detection has been confirmed to work...
-  enemy: GameObject;
-  shipsMightIntersect = false;
-  playerShipLocation = "";
-  enemyShipLocation = "";
+  // enemy: GameObject;
+  // shipsMightIntersect = false;
+  // playerShipLocation = "";
+  // enemyShipLocation = "";
 
   /**
    * This is the reference for the interval responsible for tracking real time
@@ -48,8 +48,23 @@ export class GameBoardComponent implements OnInit {
    */
   private gameClockId;
 
-  // The key is the layer each GameObject[] resides on. Higher layers are drawn later, meaning they can cover up lower ones.
+  /**
+   * The key of this map is the layer each GameObject[] resides on.
+   * Higher layers are drawn later, meaning they can cover up lower ones.
+   * Also, when checking for potential collisions, only objects on particular
+   * layers can collide with each other, which saves on the number of checks
+   * that must be run.
+  */
   public allGameItems: Map<number, GameObject[]> = new Map<number, GameObject[]>();
+
+  /**
+   * A collection that describes the relationship between GameObjects on
+   * different layers in allGameItems.
+   * Within the map layer numbers are mapped to Sets of CollisionObjects,
+   * which define what occurs occurs when an objects on the first layer are
+   * found to collide with those on the second layer.
+   */
+  public layersThatCanCollide: Map<number, Set<CollisionObject>> = new Map<number, Set<CollisionObject>>();
 
   /*
   moves = {
@@ -64,6 +79,20 @@ export class GameBoardComponent implements OnInit {
 
   ngOnInit() {
     this.initCanvas();
+
+    /**
+     * Setting up the collision rules here.
+     */
+    let playerCollisionSet = new Set<CollisionObject>();
+    playerCollisionSet.add(new CollisionObject(ENEMY_LAYER, "Player ship takes damage"));
+    playerCollisionSet.add(new CollisionObject(ENEMY_PROJECTILE_LAYER, "Player ship takes damage"));
+
+    this.layersThatCanCollide.set(PLAYER_LAYER, playerCollisionSet);
+
+    let playerProjectileCollisionSet = new Set<CollisionObject>();
+    playerProjectileCollisionSet.add(new CollisionObject(ENEMY_LAYER, "Enemy ship takes damage"));
+
+    this.layersThatCanCollide.set(PLAYER_LAYER, playerProjectileCollisionSet);
   }
 
   startGameClock() {
@@ -71,6 +100,10 @@ export class GameBoardComponent implements OnInit {
       // These are the actions that are executed 
       this.executeWorldTick();
       this.redrawCanvas();
+       /**
+        * TODO: Add in the ability to pause the world clock (suspending all
+        * ticks) and also to change the number of ticks per second.
+        */
     }, MILLISECONDS_PER_WORLD_TICK);
   }
 
@@ -103,30 +136,29 @@ export class GameBoardComponent implements OnInit {
     // TODO: Come up with a registry of items that have behaviors. Each tick update their position based on those.
     // Most enemy ships should loop through actions (flying in formation) with only later ones actually tracking the player.
     let firstBlockhead = new BlockHead(new Point(0, 0));
-    this.addGameObject(firstBlockhead, 1);
+    this.addEnemy(firstBlockhead);
 
     this.redrawCanvas();
 
     // TODO: Remove this section once we've automated collision detection.
-    this.enemy = firstBlockhead;
+    //this.enemy = firstBlockhead;
   }
 
+  /*
   // TODO: Remove this section once we've automated collision detection.
-  public doTheyIntersect() {
+  public doTheyIntersect(first: GameObject, second: GameObject) {
     console.log("Checking the intersecton of the ship and the enemy - GameboardComponent.doTheyIntersect() start");
-    let shipBoundingBox = this.ship.getBoundingBox();
-    let enemyBoundingBox = this.enemy.getBoundingBox();
+    // let shipBoundingBox = this.ship.getBoundingBox();
+    // let enemyBoundingBox = this.enemy.getBoundingBox();
+    let shipBoundingBox = first.getBoundingBox();
+    let enemyBoundingBox = second.getBoundingBox();
 
-    /** 
-     * FIXME: These bounding boxes aren't getting made correctly. Their y
-     * coordinates are all wrong. Probably due to thinking that increasing
-     * y would move the item northward instead of southward.
-     */
     this.shipsMightIntersect = IntersectionUtility.doBoundingBoxesIntersect(shipBoundingBox, enemyBoundingBox);
     this.playerShipLocation = `Upper-left corner: [(${shipBoundingBox.upperLeft.xCoordinate}, ${shipBoundingBox.upperLeft.yCoordinate})]; Lower-right corner: [(${shipBoundingBox.lowerRight.xCoordinate}, ${shipBoundingBox.lowerRight.yCoordinate})]`;
     this.enemyShipLocation = `Upper-left corner: [(${enemyBoundingBox.upperLeft.xCoordinate}, ${enemyBoundingBox.upperLeft.yCoordinate})]; Lower-right corner: [(${enemyBoundingBox.lowerRight.xCoordinate}, ${enemyBoundingBox.lowerRight.yCoordinate})]`;
     console.log("GameboardComponent.doTheyIntersect() end.");
   }
+  */
 
   addGameObject(newPiece: GameObject, layer: number) {
     // If the mentioned layer doesn't exist, add it with newPiece being the only thing on it.
@@ -141,6 +173,17 @@ export class GameBoardComponent implements OnInit {
         currentLayer.push(newPiece);
       }
     }
+  }
+
+  addPlayerProjectile(newPiece: GameObject) {
+    this.addGameObject(newPiece, PLAYER_PROJECTILE_LAYER);
+  }
+
+  addEnemy(newPiece: GameObject) {
+    this.addGameObject(newPiece, ENEMY_LAYER);
+  }
+  addEnemyProjectile(newPiece: GameObject) {
+    this.addGameObject(newPiece, ENEMY_PROJECTILE_LAYER);
   }
 
   removeGameObject(targetPiece: GameObject, layer: number) {
@@ -219,7 +262,7 @@ export class GameBoardComponent implements OnInit {
      * (This is a bit simpler since only objects on the same layer can collide)
      */
 
-    if(isNull(positionalShift) == false) {
+    if(positionalShift !== undefined && positionalShift !== null) {
       this.ship.overwriteNextMove(positionalShift);
     }
   }
@@ -233,7 +276,7 @@ export class GameBoardComponent implements OnInit {
       currentObjectList.forEach((currentObject: GameObject) => {
         if(isNull(currentObject.movementPattern) === false
         && currentObject.movementPattern.length > 0) {
-          // TODO: Handle potential colisions, stepping out of bounds, etc. here.
+          // TODO: Handle potential colisions, the player stepping out of bounds, etc. here.
           currentObject.takeNextMove();
         }
       })
@@ -252,9 +295,40 @@ export class GameBoardComponent implements OnInit {
      * moment of the two shape's journies to determine if they would ever be in
      * the same place at the same time.
      */
-    // TODO: once this method has been confirmed to work, upgrade it to check
-    // all relevant objects.
-    this.doTheyIntersect()
+
+    // Checking for collisions here:
+    this.layersThatCanCollide.forEach((collisionObjects: Set<CollisionObject>, layerNumber: number) => {
+      let itemsOnCurrentLayer = this.allGameItems.get(layerNumber);
+
+      // Iterate through the collection of every GameObject on the current layer.
+      itemsOnCurrentLayer.forEach((currentGameObject: GameObject, index: number) => {
+        // Iterate through all of the CollisionObjects registered for the current layer
+        collisionObjects.forEach((currentCollisionObject: CollisionObject) => {
+          let targetLayer = currentCollisionObject.layer;
+          let itemsOnTargetLayer: GameObject[] = this.allGameItems.get(targetLayer);
+
+          if(itemsOnTargetLayer === undefined || itemsOnTargetLayer === null) {
+            console.error("A collision mapping was defined layersThatCanCollied that referenced a layer of allGameItems that was undefined.");
+            this.allGameItems.set(targetLayer, []);
+          } else {
+            // Iterate through the collection of every GameObject on the target layer
+            itemsOnTargetLayer.forEach((currentTarget: GameObject) => {
+              // TODO: Check if currentGameObject and currentTarget collide here!
+              if(IntersectionUtility.doBoundingBoxesIntersect(currentGameObject.getBoundingBox(), currentTarget.getBoundingBox())) {
+                console.log("Collision detected!");
+              }
+            });
+          }
+        });
+      });
+    });
+
+    /**
+     * TODO: Iterate through the projectile layers here and check to see if they are out of range.
+     * Once they proceed past a certain distance off the screen just despawn them.
+     */
+
+
     console.log("World tick end.");
   }
 
@@ -284,5 +358,19 @@ export class GameBoardComponent implements OnInit {
         this.gameCanvas.draw(currentObject);
       })
     });
+  }
+}
+
+class CollisionObject {
+  layer: number;
+  /**
+   * TODO: Refactor this from string into an actionable type.
+   * I don't want to just console log "ship was damaged" I want to automate it.
+   */
+  event: string;
+
+  constructor(layer: number, event: string) {
+    this.layer = layer;
+    this.event = event;
   }
 }

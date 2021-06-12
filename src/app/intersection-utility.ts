@@ -36,8 +36,9 @@ export class IntersectionUtility {
 		// Distance between a's furthest-north and b's furthest-south
 		let d2y: number = a.upperLeft.yCoordinate - b.lowerRight.yCoordinate;
 
-		if (d1x > 0 || d1y > 0
-		|| d2x > 0 || d2y > 0) {
+		// Testing our just barely touching here.
+		if (d1x >= 0 || d1y >= 0
+		|| d2x >= 0 || d2y >= 0) {
 			return false;
 		}
 
