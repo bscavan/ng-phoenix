@@ -48,6 +48,16 @@ export class GameObject {
      */
     timeFactor: number = 1
 
+    /**
+     * The amount of base damage this GameObject can do to another GameObject
+     * on impact, if any.
+     */
+    contactDamage: number = null;
+
+    maximumHealth: number = null;
+
+    currentHealth: number = null;
+
     constructor(upperLeftCorner: Point, shapes: Shape[], movementPattern: Movement[]) {
         this.upperLeftCorner = upperLeftCorner;
         this.shapes = shapes;
@@ -83,6 +93,34 @@ export class GameObject {
 
     public setTimeFactor(timeFactor: number) {
         this.timeFactor = timeFactor;
+    }
+
+    public getContactDamage() {
+        return this.contactDamage;
+    }
+
+    public setContactDamage(contactDamage: number) {
+        this.contactDamage = contactDamage;
+    }
+
+    public getMaximumHealth() {
+        return this.maximumHealth;
+    }
+
+    public setMaximumHealth(maximumHealth: number) {
+        this.maximumHealth = maximumHealth;
+    }
+
+    public getCurrentHealth() {
+        return this.currentHealth;
+    }
+
+    public setCurrentHealth(currentHealth: number) {
+        this.currentHealth = currentHealth;
+    }
+
+    public decreaseCurrentHealth(amountToDecrease: number) {
+        this.currentHealth = Math.max(this.currentHealth - amountToDecrease, 0);
     }
 
     hasNextMove(): boolean {
@@ -151,11 +189,6 @@ export class GameObject {
                 // Adjust the positions by a distance proportional to the amount of time remaining in the current move
                 xAdjustment = xAdjustment + currentMove.xMovement * percentageOfMovementExecuted
                 yAdjustment = yAdjustment + currentMove.yMovement * percentageOfMovementExecuted
-
-                let first = -1;
-                let second = .5;
-                let result = first * second;
-                console.log("-1 * .5 is: [" + result  + "]");
 
                 // Increase the time progressed into the current move by the amount of time spent here.
                 this.timeIntoCurrentMove = this.timeIntoCurrentMove + timeThatWillBeSpentInCurrentMovement;

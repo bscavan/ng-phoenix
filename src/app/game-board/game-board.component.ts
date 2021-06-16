@@ -81,13 +81,20 @@ export class GameBoardComponent implements OnInit {
      * Setting up the collision rules here.
      */
     let playerCollisionSet = new Set<CollisionObject>();
-    playerCollisionSet.add(new CollisionObject(ENEMY_LAYER, "Player ship takes damage"));
-    playerCollisionSet.add(new CollisionObject(ENEMY_PROJECTILE_LAYER, "Player ship takes damage"));
+    playerCollisionSet.add(new CollisionObject(ENEMY_LAYER, new ContactDamageEvent()));
+    playerCollisionSet.add(new CollisionObject(ENEMY_PROJECTILE_LAYER, new ContactDamageEvent()));
+    /** 
+     * TODO: Determine if multiple ContactDamage events are even necessary.
+     * What about just referencing the class and calling the static method
+     * whenever it's needed?
+     */
+
+    // TODO: Add a pause feature (stopping the clock)
 
     this.layersThatCanCollide.set(PLAYER_LAYER, playerCollisionSet);
 
     let playerProjectileCollisionSet = new Set<CollisionObject>();
-    playerProjectileCollisionSet.add(new CollisionObject(ENEMY_LAYER, "Enemy ship takes damage"));
+    playerProjectileCollisionSet.add(new CollisionObject(ENEMY_LAYER, new ContactDamageEvent()));
 
     this.layersThatCanCollide.set(PLAYER_LAYER, playerProjectileCollisionSet);
   }
@@ -307,7 +314,11 @@ export class GameBoardComponent implements OnInit {
             // Iterate through the collection of every GameObject on the target layer
             itemsOnTargetLayer.forEach((currentTarget: GameObject) => {
               if(IntersectionUtility.doBoundingBoxesIntersect(currentGameObject.getBoundingBox(), currentTarget.getBoundingBox())) {
-                console.log("Collision detected!");
+                // TODO: Actually write IntersectionUtility.doShapesIntersect()...
+                if(IntersectionUtility.doShapesIntersect(currentGameObject, currentTarget)) {
+                  console.log("Collision detected!");
+                  this.handleCollisionEvent(currentCollisionObject.event, currentGameObject, currentTarget);
+                }
               }
             });
           }
@@ -346,18 +357,48 @@ export class GameBoardComponent implements OnInit {
       })
     });
   }
+
+  private handleCollisionEvent(event: CollisionEvent, first: GameObject, second: GameObject) {
+    event.enactConsequencesOfCollision(first, second);
+  }
 }
 
 class CollisionObject {
   layer: number;
-  /**
-   * TODO: Refactor this from string into an actionable type.
-   * I don't want to just console log "ship was damaged" I want to automate it.
-   */
-  event: string;
+  event: CollisionEvent;
 
-  constructor(layer: number, event: string) {
+  constructor(layer: number, event: CollisionEvent) {
     this.layer = layer;
     this.event = event;
+  }
+}
+
+abstract class CollisionEvent {
+  description: string;
+
+  constructor(description: string) {
+    this.description = description;
+  }
+
+  abstract enactConsequencesOfCollision(first: GameObject, second: GameObject);
+}
+
+class ContactDamageEvent extends CollisionEvent {
+  constructor() {
+    super("Both objects damage each other on contact.");
+  }
+
+  enactConsequencesOfCollision(first: GameObject, second: GameObject) {
+    if(first.getContactDamage() !== null) {
+      second.decreaseCurrentHealth(first.getContactDamage());
+    }
+
+    if(second.getContactDamage() !== null) {
+      first.decreaseCurrentHealth(second.getContactDamage());
+    }
+
+    // TODO: Actually handle the consequences of either GameObject reaching 0 HP here.
+    console.log("First GameObject's HP: [" + first.currentHealth + "]");
+    console.log("Second GameObject's HP: [" + second.currentHealth + "]");
   }
 }

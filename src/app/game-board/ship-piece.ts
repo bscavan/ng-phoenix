@@ -90,6 +90,9 @@ export class ShipPiece extends SingleMoveGameObject {
 export class Highwind extends ShipPiece {
     public static readonly DEFAULT_COLOR: string = "blue";
     public static readonly DEFAULT_OUTLINE_COLOR: string = "blue";
+    public static readonly DEFAULT_MAX_HP = 1;
+    // TODO: Look into items like Sonic-style bubble shields that give you contact damage for a limited time?
+    public static readonly DEFAULT_CONTACT_DAMAGE = 1;
 
     constructor(upperLeftCorner: Point) {
         // Currently highwind is an equalateral triangle.
@@ -102,12 +105,17 @@ export class Highwind extends ShipPiece {
         this.setTimeFactor(1);
         this.baseMovementStep = 1;
         this.baseMovementDuration = 1;
+        super.maximumHealth = Highwind.DEFAULT_MAX_HP;
+        super.currentHealth = Highwind.DEFAULT_MAX_HP;
+        super.contactDamage = Highwind.DEFAULT_CONTACT_DAMAGE;
     }
 }
 
 export class SimpleBlockHead extends GameObject {
     public static readonly DEFAULT_COLOR: string = "red";
     public static readonly DEFAULT_OUTLINE_COLOR: string = "red";
+    public static readonly DEFAULT_MAX_HP = 3;
+    public static readonly DEFAULT_CONTACT_DAMAGE = 3;
 
     constructor(upperLeftCorner: Point) {
         //let points: Point[] = [new Point(0, 1), new Point(1, 0), new Point(2, 1)];
@@ -117,5 +125,8 @@ export class SimpleBlockHead extends GameObject {
             new Movement(-1, 0, 1), new Movement(-1, 0, 1)];
 
         super(upperLeftCorner, shipShapes, backAndForth);
+        super.maximumHealth = SimpleBlockHead.DEFAULT_MAX_HP;
+        super.currentHealth = SimpleBlockHead.DEFAULT_MAX_HP;
+        super.contactDamage = SimpleBlockHead.DEFAULT_CONTACT_DAMAGE;
     }
 }

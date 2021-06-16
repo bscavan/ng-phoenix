@@ -1,3 +1,4 @@
+import { GameObject } from "./game-board/game-object";
 import { Point } from "./game-board/ship-piece";
 
 export class AxisAlignedBoundingBox {
@@ -42,6 +43,11 @@ export class IntersectionUtility {
 			return false;
 		}
 
+		return true;
+	}
+
+	public static doShapesIntersect(a: GameObject, b: GameObject): boolean {
+		// TODO: Write this method;
 		return true;
 	}
 }
