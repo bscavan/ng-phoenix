@@ -1,4 +1,5 @@
 import { GameObject, Movement, SingleMoveGameObject } from './game-object';
+// FIXME: Remove isNull and isUndefined...
 import { isNull, isUndefined } from 'util';
 import { AxisAlignedBoundingBox } from '../intersection-utility';
 
@@ -11,7 +12,10 @@ export class Point {
         this.yCoordinate = yCooridinate;
     }
 }
-
+/**
+ * FIXME: Split this up into separate files for each class.
+ * I have a circular dependency here...
+ */
 export class Shape {
     // Note: the coordinates of these points are relative to the shape. They aren't absolute.
     exteriorCorners: Point[];
@@ -101,14 +105,14 @@ export class Highwind extends ShipPiece {
     }
 }
 
-export class BlockHead extends GameObject {
+export class SimpleBlockHead extends GameObject {
     public static readonly DEFAULT_COLOR: string = "red";
     public static readonly DEFAULT_OUTLINE_COLOR: string = "red";
 
     constructor(upperLeftCorner: Point) {
         //let points: Point[] = [new Point(0, 1), new Point(1, 0), new Point(2, 1)];
         let points: Point[] = [new Point(0, 0), new Point(0, 1), new Point(1, 1), new Point(1, 0)];
-        let shipShapes: Shape[] = [new Shape(points, BlockHead.DEFAULT_COLOR, BlockHead.DEFAULT_OUTLINE_COLOR)];
+        let shipShapes: Shape[] = [new Shape(points, SimpleBlockHead.DEFAULT_COLOR, SimpleBlockHead.DEFAULT_OUTLINE_COLOR)];
         let backAndForth: Movement[] = [new Movement(1, 0, 1), new Movement(1, 0, 1),
             new Movement(-1, 0, 1), new Movement(-1, 0, 1)];
 

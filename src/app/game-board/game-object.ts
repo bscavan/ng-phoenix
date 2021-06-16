@@ -71,6 +71,12 @@ export class GameObject {
         return this.boundingBox;
     }
 
+    /**
+     * FIXME: This should be a centrally stored and referenced value. Not
+     * something unique to each GameObject.
+     * Or at least it should reference a central value as a multiplier so
+     * I can adjust everything at once.
+     */
     public getTimeFactor() {
         return this.timeFactor;
     }
@@ -87,6 +93,10 @@ export class GameObject {
         }
     }
 
+    // TODO: Handle collisions as events.
+    // TODO: Add projectiles!
+    // TODO: script out other enemy actions besides moves, like firing projectiles.
+
     takeNextMove(): void {
         if(this.movementPattern.length < 0 || this.nextMoveIndex < 0) {
             // TODO: Throw or log an error here!
@@ -95,9 +105,6 @@ export class GameObject {
             if(this.nextMoveIndex < 0) {
                 return;
             }
-
-            // If the nextMoveIndex refers to an item outside the bounds of the array, set it to the remainder looping back around again.
-            this.nextMoveIndex = this.nextMoveIndex % this.movementPattern.length;
 
             // TODO: Ensure currentMove.duration isn't 0 here...
 
@@ -109,35 +116,52 @@ export class GameObject {
             let secondsLeftInCurrentTick = this.getTimeFactor();
 
             while(secondsLeftInCurrentTick > 0) {
+                // If the nextMoveIndex refers to an item outside the bounds of the array, set it to the remainder looping back around again.
+                this.nextMoveIndex = this.nextMoveIndex % this.movementPattern.length;
+
                 let currentMove = this.movementPattern[this.nextMoveIndex];
-                let timeRemainingInCurrentMove = currentMove.duration - this.timeIntoCurrentMove;
+                let currentMoveDuration = currentMove.duration;
+
+                // This is the remaining amount of absolute time the current move will take.
+                let timeRemainingInCurrentMove = currentMoveDuration - this.timeIntoCurrentMove;
+
                 // TODO: If timeRemainingInCurrentMove is less than or equal to zero it then we
                 // have a serious problem here.
 
                 // Determine how long (in time) the current movement has left
-                let timeSpentInCurrentMovement;
+                let timeThatWillBeSpentInCurrentMovement;
 
+                /**
+                 * If the current move will take longer than the time left in
+                 * the current tick, only move as far as the time will allow.
+                 * The rest of the move will be handled on future ticks.
+                 */
                 if(secondsLeftInCurrentTick < timeRemainingInCurrentMove) {
-                    timeSpentInCurrentMovement = secondsLeftInCurrentTick;
+                    timeThatWillBeSpentInCurrentMovement = secondsLeftInCurrentTick;
                 } else {
-                    timeSpentInCurrentMovement = timeRemainingInCurrentMove
+                    timeThatWillBeSpentInCurrentMovement = timeRemainingInCurrentMove
                 }
 
                 // Remove the current movement's 'time from secondsLeftInCurrentTick
-                secondsLeftInCurrentTick = secondsLeftInCurrentTick - timeSpentInCurrentMovement;
+                secondsLeftInCurrentTick = secondsLeftInCurrentTick - timeThatWillBeSpentInCurrentMovement;
 
                 // Determine how much (distance) of the current move needs to be applied
-                let percentageOfMovementExecuted = (timeSpentInCurrentMovement / currentMove.duration)
+                let percentageOfMovementExecuted = (timeThatWillBeSpentInCurrentMovement / currentMoveDuration)
 
                 // Adjust the positions by a distance proportional to the amount of time remaining in the current move
                 xAdjustment = xAdjustment + currentMove.xMovement * percentageOfMovementExecuted
                 yAdjustment = yAdjustment + currentMove.yMovement * percentageOfMovementExecuted
 
+                let first = -1;
+                let second = .5;
+                let result = first * second;
+                console.log("-1 * .5 is: [" + result  + "]");
+
                 // Increase the time progressed into the current move by the amount of time spent here.
-                this.timeIntoCurrentMove = this.timeIntoCurrentMove + timeSpentInCurrentMovement;
+                this.timeIntoCurrentMove = this.timeIntoCurrentMove + timeThatWillBeSpentInCurrentMovement;
 
                 // If the current move has been completed
-                if(this.timeIntoCurrentMove >= currentMove.duration) {
+                if(this.timeIntoCurrentMove >= currentMoveDuration) {
                     if(currentMove.getRunOnce()) {
                         // Remove the move that was just completed.
                         this.movementPattern.splice(this.nextMoveIndex, 1);
@@ -158,16 +182,28 @@ export class GameObject {
         }
     }
 
-    moveToPoint(point: Point) {
+    /**
+     * NOTICE: This does not regenerate the BoundingBox
+     * TODO: Deprecate this.
+     */
+     moveToPoint(point: Point) {
         this.moveToCoordinates(point.xCoordinate, point.yCoordinate);
     }
 
-    moveToCoordinates(xCoordinate: number, yCoordinate: number) {
+    /**
+     * NOTICE: This does not regenerate the BoundingBox!
+     * TODO: Deprecate this.
+     */
+     moveToCoordinates(xCoordinate: number, yCoordinate: number) {
         this.upperLeftCorner.xCoordinate = xCoordinate;
         this.upperLeftCorner.yCoordinate = yCoordinate;
     }
 
-    moveGameObject(movement: Movement) {
+    /**
+     * NOTICE: This does not respect durations!
+     * TODO: Deprecate this.
+     */
+    moveGameObjectImmediately(movement: Movement) {
         this.shiftPosition(movement.xMovement, movement.yMovement);
     }
 

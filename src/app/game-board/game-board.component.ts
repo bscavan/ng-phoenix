@@ -2,13 +2,13 @@ import { Component, ViewChild, ElementRef, OnInit, HostListener } from '@angular
 import { COLS, BLOCK_SIZE, ROWS, PLAYER_LAYER, PLAYER_PROJECTILE_LAYER, ENEMY_LAYER, ENEMY_PROJECTILE_LAYER } from '../constants';
 import { GameService } from '../game-service';
 import { KeyCodes } from './KeyCodes';
-import { Point, ShipPiece, Highwind, BlockHead } from './ship-piece';
+import { Point, ShipPiece, Highwind, SimpleBlockHead } from './ship-piece';
 import { isNull } from 'util';
 import { CustomCanvas } from './custom-canvas';
 import { GameObject, Movement } from './game-object';
 import { AxisAlignedBoundingBox, IntersectionUtility } from '../intersection-utility';
 
-export const MILLISECONDS_PER_WORLD_TICK = 1000;
+export const MILLISECONDS_PER_WORLD_TICK = 500;
 
 @Component({
   selector: 'game-board',
@@ -36,11 +36,8 @@ export class GameBoardComponent implements OnInit {
   ship: ShipPiece;
   startPosition: Point = new Point(5, 2);
 
-  // TODO: Remove these once collision detection has been confirmed to work...
-  // enemy: GameObject;
-  // shipsMightIntersect = false;
-  // playerShipLocation = "";
-  // enemyShipLocation = "";
+  // TODO: Remove this:
+  enemy: SimpleBlockHead;
 
   /**
    * This is the reference for the interval responsible for tracking real time
@@ -118,9 +115,7 @@ export class GameBoardComponent implements OnInit {
     this.gameCanvas = new CustomCanvas(this.canvas.nativeElement.getContext('2d'));
 
     // Calculate size of canvas from constants.
-    //this.gameCanvas.canvas.width = COLS * BLOCK_SIZE;
     this.gameCanvas.setWidth(COLS * BLOCK_SIZE);
-    //this.gameCanvas.canvas.height = ROWS * BLOCK_SIZE;
     this.gameCanvas.setHeight(ROWS * BLOCK_SIZE);
 
     // Scales up the canvas so that each pixel is shown as a full block.
@@ -135,30 +130,27 @@ export class GameBoardComponent implements OnInit {
 
     // TODO: Come up with a registry of items that have behaviors. Each tick update their position based on those.
     // Most enemy ships should loop through actions (flying in formation) with only later ones actually tracking the player.
-    let firstBlockhead = new BlockHead(new Point(0, 0));
+    let firstBlockhead = new SimpleBlockHead(new Point(0, 0));
     this.addEnemy(firstBlockhead);
 
+    // TODO: Remove this
+    this.enemy = firstBlockhead;
+
     this.redrawCanvas();
-
-    // TODO: Remove this section once we've automated collision detection.
-    //this.enemy = firstBlockhead;
   }
 
-  /*
-  // TODO: Remove this section once we've automated collision detection.
-  public doTheyIntersect(first: GameObject, second: GameObject) {
-    console.log("Checking the intersecton of the ship and the enemy - GameboardComponent.doTheyIntersect() start");
-    // let shipBoundingBox = this.ship.getBoundingBox();
-    // let enemyBoundingBox = this.enemy.getBoundingBox();
-    let shipBoundingBox = first.getBoundingBox();
-    let enemyBoundingBox = second.getBoundingBox();
+  // TODO: Remove this...
+  public changeEnemySpeed() {
+    if(this.enemy !== undefined && this.enemy !== null) {
+      let enemySpeed = this.enemy.getTimeFactor();
 
-    this.shipsMightIntersect = IntersectionUtility.doBoundingBoxesIntersect(shipBoundingBox, enemyBoundingBox);
-    this.playerShipLocation = `Upper-left corner: [(${shipBoundingBox.upperLeft.xCoordinate}, ${shipBoundingBox.upperLeft.yCoordinate})]; Lower-right corner: [(${shipBoundingBox.lowerRight.xCoordinate}, ${shipBoundingBox.lowerRight.yCoordinate})]`;
-    this.enemyShipLocation = `Upper-left corner: [(${enemyBoundingBox.upperLeft.xCoordinate}, ${enemyBoundingBox.upperLeft.yCoordinate})]; Lower-right corner: [(${enemyBoundingBox.lowerRight.xCoordinate}, ${enemyBoundingBox.lowerRight.yCoordinate})]`;
-    console.log("GameboardComponent.doTheyIntersect() end.");
+      if(enemySpeed === 1) {
+        this.enemy.setTimeFactor(.5);
+      } else {
+        this.enemy.setTimeFactor(1);
+      }
+    }
   }
-  */
 
   addGameObject(newPiece: GameObject, layer: number) {
     // If the mentioned layer doesn't exist, add it with newPiece being the only thing on it.
@@ -182,6 +174,7 @@ export class GameBoardComponent implements OnInit {
   addEnemy(newPiece: GameObject) {
     this.addGameObject(newPiece, ENEMY_LAYER);
   }
+
   addEnemyProjectile(newPiece: GameObject) {
     this.addGameObject(newPiece, ENEMY_PROJECTILE_LAYER);
   }
@@ -203,9 +196,8 @@ export class GameBoardComponent implements OnInit {
   }
 
   /*
-   * 
-   * TODO: Refactor this to only update a value for tracking the player's last input.
-   * All of the real logic will be migrated out of here and into a method that
+   * Tthis only updates a value for tracking the player's last input.
+   * All of the real logic for moving items over time is in a method that
    * gets called each time the game's Clock updates (each tic).
    */
   @HostListener('window:keydown', ['$event'])
@@ -237,29 +229,30 @@ export class GameBoardComponent implements OnInit {
       // require and take however long it was configured to take.
       case KeyCodes.LEFT:
         positionalShift = new Movement(0 - this.ship.baseMovementStep, 0, this.ship.baseMovementDuration);
+        // FIXME: Convert these to use this.ship.getMovementDuration() instead.
         break;
 
       case KeyCodes.RIGHT:
         positionalShift = new Movement(this.ship.baseMovementStep, 0, this.ship.baseMovementDuration);
+        // FIXME: Convert these to use this.ship.getMovementDuration() instead.
         break;
 
       case KeyCodes.UP:
         positionalShift = new Movement(0, 0 - this.ship.baseMovementStep, this.ship.baseMovementDuration);
+        // FIXME: Convert these to use this.ship.getMovementDuration() instead.
         break;
 
       case KeyCodes.DOWN:
         positionalShift = new Movement(0, this.ship.baseMovementStep, this.ship.baseMovementDuration);
+        // FIXME: Convert these to use this.ship.getMovementDuration() instead.
         break;
     }
 
-    // TODO: Move the other items in the world here, enemy ships, projectiles, etc.
-
-    // TODO: Iterate over the other items on the ship's layer and confirm there won't be any collisions!
     /**
      * VERY IMPORTANT: I can't just check to see if any two items collide at
      * the end of a tick! I need to know to if any of them pass through each
      * other _during_ the tick!
-     * (This is a bit simpler since only objects on the same layer can collide)
+     * (This is a bit simpler since only objects on the same layer can collide?)
      */
 
     if(positionalShift !== undefined && positionalShift !== null) {
@@ -313,7 +306,6 @@ export class GameBoardComponent implements OnInit {
           } else {
             // Iterate through the collection of every GameObject on the target layer
             itemsOnTargetLayer.forEach((currentTarget: GameObject) => {
-              // TODO: Check if currentGameObject and currentTarget collide here!
               if(IntersectionUtility.doBoundingBoxesIntersect(currentGameObject.getBoundingBox(), currentTarget.getBoundingBox())) {
                 console.log("Collision detected!");
               }
@@ -328,12 +320,10 @@ export class GameBoardComponent implements OnInit {
      * Once they proceed past a certain distance off the screen just despawn them.
      */
 
-
     console.log("World tick end.");
   }
 
   /*
-   * TODO: Call this method once each tick of the Clock.
    * TODO: In the method that calls this one, grab the value of a variable that
    * is updated (blindly) based on the user's keyboard/controller input. That
    * value is updated whenever the inputs change, but only read once per tick.
@@ -343,13 +333,10 @@ export class GameBoardComponent implements OnInit {
    */
   redrawCanvas() {
     /**
-     * TODO: Iterate over a list of GameObjects, drawing each one on the board.
+     * Iterate over a list of GameObjects, drawing each one on the board.
      * The order in which they are drawn needs to be determined by a "layer"
      * value.
-     * Ergo, I need a collection of GameObjects and each one needs to have a score for what layer it goes on.
-     * This class will need to handle all collision checking, moving, etc.
      */
-
     this.gameCanvas.clearCanvas();
 
     // TODO: confirm this will iterate over the lists in ascending order.
