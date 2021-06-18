@@ -2,7 +2,7 @@ import { Component, ViewChild, ElementRef, OnInit, HostListener } from '@angular
 import { COLS, BLOCK_SIZE, ROWS, PLAYER_LAYER, PLAYER_PROJECTILE_LAYER, ENEMY_LAYER, ENEMY_PROJECTILE_LAYER } from '../constants';
 import { GameService } from '../game-service';
 import { KeyCodes } from './KeyCodes';
-import { Point, ShipPiece, Highwind, SimpleBlockHead } from './ship-piece';
+import { Point, ShipPiece, Highwind, SimpleBlockHead, Projectile } from './ship-piece';
 import { isNull } from 'util';
 import { CustomCanvas } from './custom-canvas';
 import { GameObject, Movement } from './game-object';
@@ -168,7 +168,7 @@ export class GameBoardComponent implements OnInit {
       let indexOfPiece = currentLayer.indexOf(newPiece);
 
       // If the GameObject doesn't already exist on this layer, add it.
-      if(indexOfPiece > 0) {
+      if(indexOfPiece < 0) {
         currentLayer.push(newPiece);
       }
     }
@@ -178,12 +178,24 @@ export class GameBoardComponent implements OnInit {
     this.addGameObject(newPiece, PLAYER_PROJECTILE_LAYER);
   }
 
+  removePlayerProjectile(newPiece: GameObject) {
+    this.removeGameObject(newPiece, PLAYER_PROJECTILE_LAYER);
+  }
+
   addEnemy(newPiece: GameObject) {
     this.addGameObject(newPiece, ENEMY_LAYER);
   }
 
+  removeEnemy(newPiece: GameObject) {
+    this.removeGameObject(newPiece, ENEMY_LAYER);
+  }
+
   addEnemyProjectile(newPiece: GameObject) {
     this.addGameObject(newPiece, ENEMY_PROJECTILE_LAYER);
+  }
+
+  removeEnemyProjectile(newPiece: GameObject) {
+    this.removeGameObject(newPiece, ENEMY_PROJECTILE_LAYER);
   }
 
   removeGameObject(targetPiece: GameObject, layer: number) {
@@ -193,7 +205,7 @@ export class GameBoardComponent implements OnInit {
 
       // If targetPiece does exist on this layer, remove it.
       if(indexOfPiece >= 0) {
-        currentLayer.slice(indexOfPiece, 1);
+        currentLayer.splice(indexOfPiece, 1);
       }
     }
   }
@@ -253,6 +265,10 @@ export class GameBoardComponent implements OnInit {
         positionalShift = new Movement(0, this.ship.baseMovementStep, this.ship.baseMovementDuration);
         // FIXME: Convert these to use this.ship.getMovementDuration() instead.
         break;
+
+      case KeyCodes.FIRE:
+        this.ship.fireProjectile = true;
+        break;
     }
 
     /**
@@ -274,10 +290,19 @@ export class GameBoardComponent implements OnInit {
     console.log("World tick start.");
     this.allGameItems.forEach((currentObjectList: GameObject[]) => {
       currentObjectList.forEach((currentObject: GameObject) => {
+        // TODO: Handle potential colisions, the player stepping out of bounds, etc. here.
+
         if(isNull(currentObject.movementPattern) === false
         && currentObject.movementPattern.length > 0) {
-          // TODO: Handle potential colisions, the player stepping out of bounds, etc. here.
           currentObject.takeNextMove();
+        }
+
+        if(currentObject instanceof ShipPiece) {
+          if(currentObject.fireProjectile) {
+            // TODO: Center the projectile on the ship. Currently it's on the left side.
+            this.addPlayerProjectile(new Projectile(this.ship.upperLeftCorner));
+            currentObject.fireProjectile = false;
+          }
         }
       })
     });
@@ -329,9 +354,38 @@ export class GameBoardComponent implements OnInit {
     /**
      * TODO: Iterate through the projectile layers here and check to see if they are out of range.
      * Once they proceed past a certain distance off the screen just despawn them.
+     * Alternatively, reuse the bounding box algorithm, but just state that if
+     * any of the coordinates are outside a particular range then remove them.
      */
+    if(this.allGameItems.has(PLAYER_PROJECTILE_LAYER)) {
+      this.allGameItems.get(PLAYER_PROJECTILE_LAYER).forEach((currentProjectile: GameObject) => {
+        if(this.isOutOfBounds(currentProjectile)) {
+          this.removePlayerProjectile(currentProjectile);
+        }
+      });
+    }
+    if(this.allGameItems.get(ENEMY_PROJECTILE_LAYER)) {
+      this.allGameItems.get(ENEMY_PROJECTILE_LAYER).forEach((currentProjectile: GameObject) => {
+        if(this.isOutOfBounds(currentProjectile)) {
+          this.removeEnemyProjectile(currentProjectile);
+        }
+      });
+    }
 
     console.log("World tick end.");
+  }
+
+  private isOutOfBounds(object: GameObject) {
+    let bbox: AxisAlignedBoundingBox = object.getBoundingBox();
+
+    if (bbox.upperLeft.yCoordinate < this.gameCanvas.getNorthenBoundary()
+    || bbox.lowerRight.xCoordinate > this.gameCanvas.getEasternBoundary()
+    || bbox.lowerRight.yCoordinate > this.gameCanvas.getSouthernBoundary()
+    || bbox.upperLeft.xCoordinate < this.gameCanvas.getWesternBoundary()) {
+      return true;
+    }
+  
+    return false;
   }
 
   /*
@@ -360,6 +414,11 @@ export class GameBoardComponent implements OnInit {
 
   private handleCollisionEvent(event: CollisionEvent, first: GameObject, second: GameObject) {
     event.enactConsequencesOfCollision(first, second);
+    /**
+     * This needs to hook into a service that can be notified when GameObjects
+     * reach 0hp, when they go outside a certain range, etc. In fact this
+     * method should probably accept a reference to the service as a parameter.
+     */
   }
 }
 
