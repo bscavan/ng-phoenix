@@ -86,7 +86,46 @@ export class ShipPiece extends SingleMoveGameObject {
      */
     public baseMovementDuration: number = 0;
 
-    public fireProjectile: boolean = false;
+    // TODO: Add an interface for ships and have it come with a method to get
+    // the rate of fire to determine how often (in game time) enemy ships should fire projectiles
+    //public static readonly DEFAULT_RATE_OF_FIRE = 1;
+
+    /**
+     * The amount of game time that needs to pass after the ship creates a
+     * projectile has been created before the ship can fire again.
+     */
+    public cyclesDelayBetweenShots = 0;
+
+    /**
+     * The amount of game time that needs to pass until the next projectile can
+     * be created. Should always be between maximumRateOfFire and 0.
+     */
+    public cyclesUntilNextFire = 0;
+
+    // This is only getting used on player ships. Is it worth keeping around?
+    public fireProjectileOnNextTick: boolean = false;
+
+    public cycleGun(): Projectile | null {
+        if(this.cyclesUntilNextFire > 0) {
+            this.cyclesUntilNextFire--;
+            return null;
+        } else {
+            return this.createProjectile();
+        } 
+    }
+
+    public shouldFireProjectileOnNextTick() {
+        return this.fireProjectileOnNextTick;
+    }
+    /*
+     * TODO: Consider adding an instance of a "Gun" class to ShipPiece that
+     * specifies the type of projectile, its movements, any angling of the shot,
+     * etc. Standard guns could be instantiated and would save work.
+     */
+    public createProjectile() {
+        this.cyclesUntilNextFire = this.cyclesDelayBetweenShots;
+        return new Projectile(this.upperLeftCorner);
+    }
 }
 
 export class Highwind extends ShipPiece {
@@ -98,6 +137,7 @@ export class Highwind extends ShipPiece {
 
     constructor(upperLeftCorner: Point) {
         // Currently highwind is an equalateral triangle.
+        // TODO: re-draw it to make it look more like the real ship.
         let points: Point[] = [new Point(0, 1), new Point(1, 0), new Point(2, 1)];
         //let points: Point[] = [new Point(0, 1), new Point(1, 1), new Point(1, 0), new Point(0, 0)];
         let shipShapes: Shape[] = [new Shape(points, Highwind.DEFAULT_COLOR, Highwind.DEFAULT_OUTLINE_COLOR)];
@@ -111,6 +151,11 @@ export class Highwind extends ShipPiece {
         super.currentHealth = Highwind.DEFAULT_MAX_HP;
         super.contactDamage = Highwind.DEFAULT_CONTACT_DAMAGE;
     }
+
+    public cycleGun(): Projectile | null {
+        this.fireProjectileOnNextTick = false;
+        return super.cycleGun();
+    }
 }
 
 export class Projectile extends GameObject {
@@ -120,9 +165,8 @@ export class Projectile extends GameObject {
     public static readonly DEFAULT_CONTACT_DAMAGE = 1;
 
     constructor(upperLeftCorner: Point) {
-        //let points: Point[] = [new Point(0, 1), new Point(1, 0), new Point(2, 1)];
         let points: Point[] = [new Point(0, 0), new Point(0, .5), new Point(.5, .5), new Point(.5, 0)];
-        let shipShapes: Shape[] = [new Shape(points, Projectile.DEFAULT_COLOR, Projectile.DEFAULT_OUTLINE_COLOR)];
+        let projectileShapes: Shape[] = [new Shape(points, Projectile.DEFAULT_COLOR, Projectile.DEFAULT_OUTLINE_COLOR)];
         /**
          * TODO: Make more complex paths for the projectiles fired from
          * different weapons. Also look into setting up Movements to be
@@ -148,7 +192,8 @@ export class Projectile extends GameObject {
          * been destroyed so we know when the player has beaten the level!
          */
         let straightAhead: Movement[] = [new Movement(0, -1, 1)];
-        /**
+
+        /*
          * It is absolutely necessary we create a new Point. if the old Point
          * is used then when it moves anything referencing it will move along
          * with it. Ergo, if the projectile starts at the position where its
@@ -156,24 +201,49 @@ export class Projectile extends GameObject {
          */
         let corner = new Point(upperLeftCorner.xCoordinate, upperLeftCorner.yCoordinate);
 
-        super(corner, shipShapes, straightAhead);
+        super(corner, projectileShapes, straightAhead);
         super.maximumHealth = Projectile.DEFAULT_MAX_HP;
         super.currentHealth = Projectile.DEFAULT_MAX_HP;
         super.contactDamage = Projectile.DEFAULT_CONTACT_DAMAGE;
     }
+
+    public getColor() {
+        return Projectile.DEFAULT_COLOR;
+    }
+
+    public getOutineColor() {
+        return Projectile.DEFAULT_OUTLINE_COLOR;
+    }
 }
 
-// TODO: Add an interface for ships and have it come with a method to get
-// the rate of fire to determine how often (in game time) enemy ships should fire projectiles
-//public static readonly DEFAULT_RATE_OF_FIRE = 1;
-export class SimpleBlockHead extends GameObject {
+export class EnemyProjectile extends Projectile {
+    projectileColor = "yellow";
+    projectileOutlineColor = "yellow";
+    // TODO: Actually set the colors. This isn't enough.
+
+    constructor(upperLeftCorner: Point) {
+        super(upperLeftCorner);
+        // FIXME: For some reason we're getting Projectiles when GunnerBlockHead fires!
+        // They're showing up (supposedly) colored green and they're keeping the default movement pattern of going backwards!
+        this.movementPattern = [new Movement(0, 1, 1)];
+    }
+
+    public getColor() {
+        return this.projectileColor;
+    }
+
+    public getOutlineColor() {
+        return this.projectileOutlineColor;
+    }
+}
+
+export class SimpleBlockHead extends ShipPiece {
     public static readonly DEFAULT_COLOR: string = "red";
     public static readonly DEFAULT_OUTLINE_COLOR: string = "red";
     public static readonly DEFAULT_MAX_HP = 3;
     public static readonly DEFAULT_CONTACT_DAMAGE = 3;
 
     constructor(upperLeftCorner: Point) {
-        //let points: Point[] = [new Point(0, 1), new Point(1, 0), new Point(2, 1)];
         let points: Point[] = [new Point(0, 0), new Point(0, 1), new Point(1, 1), new Point(1, 0)];
         let shipShapes: Shape[] = [new Shape(points, SimpleBlockHead.DEFAULT_COLOR, SimpleBlockHead.DEFAULT_OUTLINE_COLOR)];
         let backAndForth: Movement[] = [new Movement(1, 0, 1), new Movement(1, 0, 1),
@@ -183,5 +253,71 @@ export class SimpleBlockHead extends GameObject {
         super.maximumHealth = SimpleBlockHead.DEFAULT_MAX_HP;
         super.currentHealth = SimpleBlockHead.DEFAULT_MAX_HP;
         super.contactDamage = SimpleBlockHead.DEFAULT_CONTACT_DAMAGE;
+
+        // SimpleBlockHeads are not capable of creating projectiles
+        this.fireProjectileOnNextTick = false;
+    }
+
+    // public shouldFireProjectileOnNextTick() {
+    //     return false;
+    // }
+}
+
+export class GunnerBlockHead extends SimpleBlockHead {
+    constructor(upperLeftCorner: Point) {
+        super(upperLeftCorner);
+
+        // GunnerBlockHeads are like SimpleBlockHeads, but they always attempt projectiles on every tick.
+        this.fireProjectileOnNextTick = true;
+        this.cyclesDelayBetweenShots = 0;
+    }
+    // They are like SimpleBlockHeads, but they always fire projectiles on every tick.
+    // public shouldFireProjectileOnNextTick() {
+    //     return true;
+    // }
+
+    /**
+     * TODO: Consider things like limiting not just the type of projectiles and
+     * the rate of fire, but also the number of shots?
+     * Enemies that have powerful ammo in limited quantities? Bombs?
+     */
+    // What about enemies that explode on death?
+    public createProjectile() {
+        this.cyclesUntilNextFire = this.cyclesDelayBetweenShots;
+        return new EnemyProjectile(this.upperLeftCorner);
+    }
+}
+
+export class ComplexGunnerBlockHead extends SimpleBlockHead {
+    constructor(upperLeftCorner: Point) {
+        super(upperLeftCorner);
+
+        this.fireProjectileOnNextTick = true;
+        this.cyclesDelayBetweenShots = 3;
+    }
+
+    // // They are like SimpleBlockHeads, but they always fire projectiles on every tick.
+    // public shouldFire() {
+    //     if(currentTick > this.cyclesUntilNextFire + this.cyclesDelayBetweenShots) {
+    //         return true;
+    //     } else {
+    //         return false;
+    //     }
+    // }
+
+    // public createProjectile(): Projectile {
+    //     // TODO: update this.lastTimeFired here.
+    //     return super.createProjectile();
+    // }
+
+    /**
+     * TODO: Consider things like limiting not just the type of projectiles and
+     * the rate of fire, but also the number of shots?
+     * Enemies that have powerful ammo in limited quantities? Bombs?
+     */
+    // What about enemies that explode on death?
+    public createProjectile() {
+        this.cyclesUntilNextFire = this.cyclesDelayBetweenShots;
+        return new EnemyProjectile(this.upperLeftCorner);
     }
 }

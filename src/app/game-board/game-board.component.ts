@@ -2,7 +2,7 @@ import { Component, ViewChild, ElementRef, OnInit, HostListener } from '@angular
 import { COLS, BLOCK_SIZE, ROWS, PLAYER_LAYER, PLAYER_PROJECTILE_LAYER, ENEMY_LAYER, ENEMY_PROJECTILE_LAYER } from '../constants';
 import { GameService } from '../game-service';
 import { KeyCodes } from './KeyCodes';
-import { Point, ShipPiece, Highwind, SimpleBlockHead, Projectile } from './ship-piece';
+import { Point, ShipPiece, Highwind, SimpleBlockHead, Projectile, GunnerBlockHead, ComplexGunnerBlockHead } from './ship-piece';
 import { isNull } from 'util';
 import { CustomCanvas } from './custom-canvas';
 import { GameObject, Movement } from './game-object';
@@ -137,8 +137,12 @@ export class GameBoardComponent implements OnInit {
 
     // TODO: Come up with a registry of items that have behaviors. Each tick update their position based on those.
     // Most enemy ships should loop through actions (flying in formation) with only later ones actually tracking the player.
-    let firstBlockhead = new SimpleBlockHead(new Point(0, 0));
+    //let firstBlockhead = new SimpleBlockHead(new Point(0, 0));
+    let firstBlockhead = new GunnerBlockHead(new Point(0, 0));
+    //let firstBlockhead = new ComplexGunnerBlockHead(new Point(0, 0));
     this.addEnemy(firstBlockhead);
+
+    // TODO: Test GunnerBlockHead and ComplexGunnerBlockHead...
 
     // TODO: Remove this
     this.enemy = firstBlockhead;
@@ -146,7 +150,14 @@ export class GameBoardComponent implements OnInit {
     this.redrawCanvas();
   }
 
-  // TODO: Remove this...
+  /**
+   * TODO: Convert this to function on a global level.
+   * Don't make methods that require updating every GameObject individually.
+   *
+   * TODO: Add a test to GameObject that mimics this, changing the timeFactor
+   * from .5 to 1 three ticks in. Assert that the position is correct after
+   * each tick.
+   */
   public changeEnemySpeed() {
     if(this.enemy !== undefined && this.enemy !== null) {
       let enemySpeed = this.enemy.getTimeFactor();
@@ -196,6 +207,7 @@ export class GameBoardComponent implements OnInit {
 
   removeEnemyProjectile(newPiece: GameObject) {
     this.removeGameObject(newPiece, ENEMY_PROJECTILE_LAYER);
+    console.log("Removing enemy projectile now.");
   }
 
   removeGameObject(targetPiece: GameObject, layer: number) {
@@ -267,7 +279,7 @@ export class GameBoardComponent implements OnInit {
         break;
 
       case KeyCodes.FIRE:
-        this.ship.fireProjectile = true;
+        this.ship.fireProjectileOnNextTick = true;
         break;
     }
 
@@ -287,10 +299,10 @@ export class GameBoardComponent implements OnInit {
    * For every layer, for each GameObject in that layer, if it has a movementPattern, apply it.
    */
   executeWorldTick() {
-    console.log("World tick start.");
+    //console.log("World tick start.");
     this.allGameItems.forEach((currentObjectList: GameObject[]) => {
       currentObjectList.forEach((currentObject: GameObject) => {
-        // TODO: Handle potential colisions, the player stepping out of bounds, etc. here.
+        // TODO: Handle the player stepping out of bounds here.
 
         if(isNull(currentObject.movementPattern) === false
         && currentObject.movementPattern.length > 0) {
@@ -298,10 +310,19 @@ export class GameBoardComponent implements OnInit {
         }
 
         if(currentObject instanceof ShipPiece) {
-          if(currentObject.fireProjectile) {
-            // TODO: Center the projectile on the ship. Currently it's on the left side.
-            this.addPlayerProjectile(new Projectile(this.ship.upperLeftCorner));
-            currentObject.fireProjectile = false;
+          if(currentObject.shouldFireProjectileOnNextTick()) {
+            let newProjectile = currentObject.cycleGun();
+
+            if(newProjectile !== null) {
+              // TODO: Center the projectile on the ship. Currently it's on the left side.
+              if(currentObject === this.ship) {
+                // This is the player ship, so put the Projectile on the PLAYER_PROJECTILE_LAYER.
+                this.addPlayerProjectile(newProjectile);
+              } else {
+                // This is not the player ship, so put the projectile on the ENEMY_PROJECTILE_LAYER.
+                this.addEnemyProjectile(newProjectile);
+              }
+            }
           }
         }
       })
@@ -351,12 +372,6 @@ export class GameBoardComponent implements OnInit {
       });
     });
 
-    /**
-     * TODO: Iterate through the projectile layers here and check to see if they are out of range.
-     * Once they proceed past a certain distance off the screen just despawn them.
-     * Alternatively, reuse the bounding box algorithm, but just state that if
-     * any of the coordinates are outside a particular range then remove them.
-     */
     if(this.allGameItems.has(PLAYER_PROJECTILE_LAYER)) {
       this.allGameItems.get(PLAYER_PROJECTILE_LAYER).forEach((currentProjectile: GameObject) => {
         if(this.isOutOfBounds(currentProjectile)) {
@@ -364,6 +379,7 @@ export class GameBoardComponent implements OnInit {
         }
       });
     }
+
     if(this.allGameItems.get(ENEMY_PROJECTILE_LAYER)) {
       this.allGameItems.get(ENEMY_PROJECTILE_LAYER).forEach((currentProjectile: GameObject) => {
         if(this.isOutOfBounds(currentProjectile)) {
@@ -372,7 +388,7 @@ export class GameBoardComponent implements OnInit {
       });
     }
 
-    console.log("World tick end.");
+    //console.log("World tick end.");
   }
 
   private isOutOfBounds(object: GameObject) {
