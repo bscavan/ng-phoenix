@@ -30,6 +30,8 @@ export class GameBoardComponent implements OnInit {
   @ViewChild('board', { static: true })
   canvas: ElementRef<HTMLCanvasElement>;
 
+  // TODO: add a secondary canvas here and swap them out when resetting things...
+  //secondaryCanvas: CustomCanvas;
   gameCanvas: CustomCanvas;
   points: number;
   lines: number;
@@ -157,6 +159,7 @@ export class GameBoardComponent implements OnInit {
   }
 
   // TODO: Rename this method.
+  // FIXME: Pressing this a second time should not just spawn a new enemy.
   play() {
     this.startGameClock();
     this.ship = new Highwind(this.startPosition);
@@ -316,7 +319,7 @@ export class GameBoardComponent implements OnInit {
         break;
 
       case KeyCodes.FIRE:
-        this.ship.fireProjectileOnNextTick = true;
+        this.ship.shouldFireWhenCapable = true;
         break;
     }
 
@@ -453,13 +456,19 @@ export class GameBoardComponent implements OnInit {
      * value.
      */
     this.gameCanvas.clearCanvas();
+    //this.secondaryCanvas.clearCanvas();
 
     // TODO: confirm this will iterate over the lists in ascending order.
     this.allGameItems.forEach((currentObjectList: GameObject[]) => {
       currentObjectList.forEach((currentObject: GameObject) => {
         this.gameCanvas.draw(currentObject);
+        //this.secondaryCanvas.draw(currentObject);
       })
     });
+
+    // let tempCanvas = this.gameCanvas;
+    // this.gameCanvas = secondaryCanvas;
+    // let secondaryCanvas = tempCanvas;
   }
 
   private handleCollisionEvent(event: CollisionEvent, first: GameObject, second: GameObject) {

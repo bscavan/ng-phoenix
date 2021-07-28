@@ -290,8 +290,8 @@ export class GameObject {
         this.upperLeftCorner.yCoordinate = this.upperLeftCorner.yCoordinate + yOffset;
         this.regenerateBoundingBox();
         // TODO: Determine if it is enough to simply shift the existing
-        // bounding box instead of regenerating it. That would save
-	// massively on overhead later on.
+        // bounding box instead of regenerating it. That could save
+        // massively on overhead later on.
     }
 
     // TODO: JAVADOC
@@ -397,6 +397,15 @@ export class SingleMoveGameObject extends GameObject {
     // TODO: Be careful with this one. It will completely delete any pre-scripted moves.
     // In the future it might be better to non-destructively insert blocks of moves.
     overwriteNextMove(nextMove: Movement) {
+        nextMove.setRunOnlyOnce(true);
+        // the second "move" is a non-movement. It just sits there like a platypus.
+        this.movementPattern = [nextMove, new Movement(0, 0, 1)];
+        this.nextMoveIndex = 0;
+        this.timeIntoCurrentMove = 0;
+    }
+    // TODO: Be careful with this one. It will completely delete any pre-scripted moves.
+    // In the future it might be better to non-destructively insert blocks of moves.
+    overwriteNextMove_orig(nextMove: Movement) {
         nextMove.setRunOnlyOnce(true);
         this.movementPattern = [nextMove];
         this.nextMoveIndex = 0;

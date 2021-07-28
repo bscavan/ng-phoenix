@@ -33,7 +33,7 @@ export class Shape {
         }
     }
 
-    // TODO: Optimize this so it only gets re-generated after the list of shapes changes.
+    // TODO: Optimize this so it only gets re-generated after the list of shapes changes or the position changes.
     generateBoundingBox(): AxisAlignedBoundingBox {
         let highestNorth = 0;
         let lowestSouth = 0;
@@ -86,10 +86,6 @@ export class ShipPiece extends SingleMoveGameObject {
      */
     public baseMovementDuration: number = 0;
 
-    // TODO: Add an interface for ships and have it come with a method to get
-    // the rate of fire to determine how often (in game time) enemy ships should fire projectiles
-    //public static readonly DEFAULT_RATE_OF_FIRE = 1;
-
     /**
      * The amount of game time that needs to pass after the ship creates a
      * projectile has been created before the ship can fire again.
@@ -105,31 +101,34 @@ export class ShipPiece extends SingleMoveGameObject {
     public secondsUntilNextFire = 0;
 
     // This is only getting used on player ships. Is it worth keeping around?
-    public fireProjectileOnNextTick: boolean = false;
+    public shouldFireWhenCapable: boolean = false;
 
     public postMoveActions(seconds: number): Projectile[]  {
         return this.cycleGun(seconds);
     }
 
     public cycleGun(seconds: number): Projectile[] {
-        let secondsDelay = Math.max(1, this.secondsDelayBetweenShots);
         let projectilesFired: Projectile[] = [];
-        this.secondsUntilNextFire = this.secondsUntilNextFire - seconds;
 
-        // fire the gun until we're caught up.
-        while(this.secondsUntilNextFire <= 0) {
-            // fire the gun once.
-            projectilesFired.push(this.createProjectile());
+        if(this.shouldFireWhenCapable) {
+            let secondsDelay = Math.max(1, this.secondsDelayBetweenShots);
+            this.secondsUntilNextFire = this.secondsUntilNextFire - seconds;
 
-            // increase cyclesUntilNextFire so the next projectile won't be created until it is supposed to be.
-            this.secondsUntilNextFire = this.secondsUntilNextFire + secondsDelay;
+            // fire the gun until we're caught up.
+            while(this.secondsUntilNextFire <= 0) {
+                // fire the gun once.
+                projectilesFired.push(this.createProjectile());
+
+                // increase cyclesUntilNextFire so the next projectile won't be created until it is supposed to be.
+                this.secondsUntilNextFire = this.secondsUntilNextFire + secondsDelay;
+            }
         }
 
         return projectilesFired;
     }
 
     public shouldFireProjectileOnNextTick() {
-        return this.fireProjectileOnNextTick;
+        return this.shouldFireWhenCapable;
     }
     /*
      * TODO: Consider adding an instance of a "Gun" class to ShipPiece that
@@ -137,8 +136,7 @@ export class ShipPiece extends SingleMoveGameObject {
      * etc. Standard guns could be instantiated and would save work.
      */
     public createProjectile() {
-        // TODO: Center the projectile on the ship. Currently it's on the left side.
-        return new Projectile(this.upperLeftCorner);
+        return Projectile.makeDefaultProjectile(this.upperLeftCorner);
     }
 }
 
@@ -156,7 +154,7 @@ export class Highwind extends ShipPiece {
         //let points: Point[] = [new Point(0, 1), new Point(1, 1), new Point(1, 0), new Point(0, 0)];
         let shipShapes: Shape[] = [new Shape(points, Highwind.DEFAULT_COLOR, Highwind.DEFAULT_OUTLINE_COLOR)];
 
-        super(upperLeftCorner, shipShapes, null);
+        super(upperLeftCorner, shipShapes, [new Movement(0, 0, 1)]);
         // Setting time and movement-determining values here.
         this.baseMovementStep = 1;
         this.baseMovementDuration = 1;
@@ -166,8 +164,9 @@ export class Highwind extends ShipPiece {
     }
 
     public cycleGun(seconds: number): Projectile[] | null {
-        this.fireProjectileOnNextTick = false;
-        return super.cycleGun(seconds);
+        let projectilesCreated: Projectile[] = super.cycleGun(seconds);
+        this.shouldFireWhenCapable = false;
+        return projectilesCreated;
     }
 }
 
@@ -177,9 +176,10 @@ export class Projectile extends GameObject {
     public static readonly DEFAULT_MAX_HP = 1;
     public static readonly DEFAULT_CONTACT_DAMAGE = 1;
 
-    constructor(upperLeftCorner: Point) {
+    // TODO: Center the projectile on the ship. Currently it's on the left side.
+    constructor(upperLeftCorner: Point, color: string, outlineColor: string) {
         let points: Point[] = [new Point(0, 0), new Point(0, .5), new Point(.5, .5), new Point(.5, 0)];
-        let projectileShapes: Shape[] = [new Shape(points, Projectile.DEFAULT_COLOR, Projectile.DEFAULT_OUTLINE_COLOR)];
+        let projectileShapes: Shape[] = [new Shape(points, color, outlineColor)];
         /**
          * TODO: Make more complex paths for the projectiles fired from
          * different weapons. Also look into setting up Movements to be
@@ -220,6 +220,10 @@ export class Projectile extends GameObject {
         super.contactDamage = Projectile.DEFAULT_CONTACT_DAMAGE;
     }
 
+    public static makeDefaultProjectile(upperLeftCorner: Point): Projectile {
+        return new Projectile(upperLeftCorner, Projectile.DEFAULT_COLOR, Projectile.DEFAULT_OUTLINE_COLOR);
+    }
+
     public getColor() {
         return Projectile.DEFAULT_COLOR;
     }
@@ -230,23 +234,12 @@ export class Projectile extends GameObject {
 }
 
 export class EnemyProjectile extends Projectile {
-    projectileColor = "yellow";
-    projectileOutlineColor = "yellow";
-    // TODO: Actually set the colors. This isn't enough.
+    public static readonly ENEMY_PROJECTILE_COLOR = "goldenrod";
+    public static readonly ENEMY_PROJECTILE_OUTLINE_COLOR = "goldenrod";
 
     constructor(upperLeftCorner: Point) {
-        super(upperLeftCorner);
-        // FIXME: For some reason we're getting Projectiles when GunnerBlockHead fires!
-        // They're showing up (supposedly) colored green and they're keeping the default movement pattern of going backwards!
+        super(upperLeftCorner, EnemyProjectile.ENEMY_PROJECTILE_COLOR, EnemyProjectile.ENEMY_PROJECTILE_OUTLINE_COLOR);
         this.movementPattern = [new Movement(0, 1, 1)];
-    }
-
-    public getColor() {
-        return this.projectileColor;
-    }
-
-    public getOutlineColor() {
-        return this.projectileOutlineColor;
     }
 }
 
@@ -281,12 +274,8 @@ export class SimpleBlockHead extends EnemyShipPiece {
         super.contactDamage = SimpleBlockHead.DEFAULT_CONTACT_DAMAGE;
 
         // SimpleBlockHeads are not capable of creating projectiles
-        this.fireProjectileOnNextTick = false;
+        this.shouldFireWhenCapable = false;
     }
-
-    // public shouldFireProjectileOnNextTick() {
-    //     return false;
-    // }
 }
 
 export class GunnerBlockHead extends SimpleBlockHead {
@@ -294,13 +283,9 @@ export class GunnerBlockHead extends SimpleBlockHead {
         super(upperLeftCorner);
 
         // GunnerBlockHeads are like SimpleBlockHeads, but they always attempt to fire projectiles on every tick.
-        this.fireProjectileOnNextTick = true;
+        this.shouldFireWhenCapable = true;
         this.secondsDelayBetweenShots = 1;
     }
-    // They are like SimpleBlockHeads, but they always fire projectiles on every tick.
-    // public shouldFireProjectileOnNextTick() {
-    //     return true;
-    // }
 
     /**
      * TODO: Consider things like limiting not just the type of projectiles and
@@ -317,23 +302,9 @@ export class ComplexGunnerBlockHead extends SimpleBlockHead {
     constructor(upperLeftCorner: Point) {
         super(upperLeftCorner);
 
-        this.fireProjectileOnNextTick = true;
+        this.shouldFireWhenCapable = true;
         this.secondsDelayBetweenShots = 3;
     }
-
-    // // They are like SimpleBlockHeads, but they always fire projectiles on every tick.
-    // public shouldFire() {
-    //     if(currentTick > this.cyclesUntilNextFire + this.cyclesDelayBetweenShots) {
-    //         return true;
-    //     } else {
-    //         return false;
-    //     }
-    // }
-
-    // public createProjectile(): Projectile {
-    //     // TODO: update this.lastTimeFired here.
-    //     return super.createProjectile();
-    // }
 
     /**
      * TODO: Consider things like limiting not just the type of projectiles and
