@@ -7,6 +7,7 @@ import { isNull } from 'util';
 import { CustomCanvas } from './custom-canvas';
 import { GameObject, Movement } from './game-object';
 import { AxisAlignedBoundingBox, IntersectionUtility } from '../intersection-utility';
+import { TimeFactorNode, Timestream } from './timestream';
 
 export const MILLISECONDS_PER_WORLD_TICK = 500;
 
@@ -36,8 +37,27 @@ export class GameBoardComponent implements OnInit {
   ship: ShipPiece;
   startPosition: Point = new Point(5, 2);
 
-  // TODO: Remove this:
-  enemy: SimpleBlockHead;
+  timestream: Timestream = new Timestream();
+  worldTimeChannel: TimeFactorNode;
+  enemyShipsTimeChannel: TimeFactorNode;
+  enemyProjectileTimeChannel: TimeFactorNode;
+  playerShipTimeChannel: TimeFactorNode;
+  playerProjectileTimeChannel: TimeFactorNode;
+
+  /**
+   * Pausing the game literally stops the gameClock?
+   *    No ticks occur when the game is paused?
+   *
+   * Setting the modifiers of timeChannels to 0 stops the gameObjects that use
+   * them from moving despite the game clock ticking forward.
+   * Ergo, a "freeze ray" could add coloration to the player ship, put a shape
+   * beneath it (a block of ice) and then set their speed to 0 for a limited
+   * number of ticks
+   *    (TODO: Figure out how to make temporary conditions like that.)
+   * Whereas a "time stop" ability the player uses would set the multipliers
+   * for the enemy ships, enemy projectiles, and (possibly) player projectiles
+   * all to 0.
+   */
 
   /**
    * This is the reference for the interval responsible for tracking real time
@@ -77,6 +97,14 @@ export class GameBoardComponent implements OnInit {
   ngOnInit() {
     this.initCanvas();
 
+    // Setting up the timeFactors for everything in this game. These affect the effective speeds of everything.
+    this.worldTimeChannel = this.timestream.getWorldRootTimestream();
+    // TODO: Make these channel names into constants...
+    this.playerShipTimeChannel = this.timestream.makeNewBranch("playerShipTimeChannel", Timestream.WORLD_ROOT_KEY, 1);
+    this.playerProjectileTimeChannel = this.timestream.makeNewBranch("playerProjectileTimeChannel", Timestream.WORLD_ROOT_KEY, 1);
+    this.enemyShipsTimeChannel = this.timestream.makeNewBranch("enemyShipTimeChannel", Timestream.WORLD_ROOT_KEY, 1);
+    this.enemyProjectileTimeChannel = this.timestream.makeNewBranch("enemyProjectileTimeChannel", Timestream.WORLD_ROOT_KEY, 1);
+
     /**
      * Setting up the collision rules here.
      */
@@ -101,7 +129,6 @@ export class GameBoardComponent implements OnInit {
 
   startGameClock() {
     this.gameClockId = setInterval(() => {
-      // These are the actions that are executed 
       this.executeWorldTick();
       this.redrawCanvas();
        /**
@@ -133,6 +160,7 @@ export class GameBoardComponent implements OnInit {
   play() {
     this.startGameClock();
     this.ship = new Highwind(this.startPosition);
+    this.ship.setTimeChannel(this.playerShipTimeChannel);
     this.addGameObject(this.ship, PLAYER_LAYER);
 
     // TODO: Come up with a registry of items that have behaviors. Each tick update their position based on those.
@@ -144,9 +172,6 @@ export class GameBoardComponent implements OnInit {
 
     // TODO: Test GunnerBlockHead and ComplexGunnerBlockHead...
 
-    // TODO: Remove this
-    this.enemy = firstBlockhead;
-
     this.redrawCanvas();
   }
 
@@ -157,15 +182,17 @@ export class GameBoardComponent implements OnInit {
    * TODO: Add a test to GameObject that mimics this, changing the timeFactor
    * from .5 to 1 three ticks in. Assert that the position is correct after
    * each tick.
+   *
+   * FIXME: If you change the enemy speed twice in a row, before a tick happens,
+   * it's possible to get an extra move out of the gameObject. Need to experiment
+   * with this further...
    */
   public changeEnemySpeed() {
-    if(this.enemy !== undefined && this.enemy !== null) {
-      let enemySpeed = this.enemy.getTimeFactor();
-
-      if(enemySpeed === 1) {
-        this.enemy.setTimeFactor(.5);
+    if(this.enemyShipsTimeChannel !== undefined && this.enemyShipsTimeChannel !== null) {
+      if(this.enemyShipsTimeChannel.getTimeModifier() === 1) {
+        this.enemyShipsTimeChannel.setTimeModifier(.5);
       } else {
-        this.enemy.setTimeFactor(1);
+        this.enemyShipsTimeChannel.setTimeModifier(1);
       }
     }
   }
@@ -186,6 +213,7 @@ export class GameBoardComponent implements OnInit {
   }
 
   addPlayerProjectile(newPiece: GameObject) {
+    newPiece.setTimeChannel(this.playerProjectileTimeChannel)
     this.addGameObject(newPiece, PLAYER_PROJECTILE_LAYER);
   }
 
@@ -194,6 +222,7 @@ export class GameBoardComponent implements OnInit {
   }
 
   addEnemy(newPiece: GameObject) {
+    newPiece.setTimeChannel(this.enemyShipsTimeChannel);
     this.addGameObject(newPiece, ENEMY_LAYER);
   }
 
@@ -202,6 +231,7 @@ export class GameBoardComponent implements OnInit {
   }
 
   addEnemyProjectile(newPiece: GameObject) {
+    newPiece.setTimeChannel(this.enemyProjectileTimeChannel)
     this.addGameObject(newPiece, ENEMY_PROJECTILE_LAYER);
   }
 
@@ -304,24 +334,21 @@ export class GameBoardComponent implements OnInit {
       currentObjectList.forEach((currentObject: GameObject) => {
         // TODO: Handle the player stepping out of bounds here.
 
-        if(isNull(currentObject.movementPattern) === false
+        if(currentObject.movementPattern !== null
         && currentObject.movementPattern.length > 0) {
-          currentObject.takeNextMove();
-        }
+          let createdProjectiles: Projectile[] = currentObject.takeNextMove();
 
-        if(currentObject instanceof ShipPiece) {
-          if(currentObject.shouldFireProjectileOnNextTick()) {
-            let newProjectile = currentObject.cycleGun();
-
-            if(newProjectile !== null) {
-              // TODO: Center the projectile on the ship. Currently it's on the left side.
-              if(currentObject === this.ship) {
-                // This is the player ship, so put the Projectile on the PLAYER_PROJECTILE_LAYER.
-                this.addPlayerProjectile(newProjectile);
-              } else {
-                // This is not the player ship, so put the projectile on the ENEMY_PROJECTILE_LAYER.
-                this.addEnemyProjectile(newProjectile);
-              }
+          if(createdProjectiles != null && createdProjectiles.length > 0) {
+            if(currentObject === this.ship) {
+              // This is the player ship, so put the Projectiles on the PLAYER_PROJECTILE_LAYER.
+              createdProjectiles.forEach((currentProjectile) => {
+                this.addPlayerProjectile(currentProjectile);
+              });
+            } else {
+              // This is not the player ship, so put the projectile on the ENEMY_PROJECTILE_LAYER.
+              createdProjectiles.forEach((currentProjectile) => {
+                this.addEnemyProjectile(currentProjectile);
+              });
             }
           }
         }

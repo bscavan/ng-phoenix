@@ -1,5 +1,6 @@
 import { AxisAlignedBoundingBox } from '../intersection-utility';
-import { Point, Shape } from './ship-piece';
+import { Point, Projectile, Shape } from './ship-piece';
+import { TimeFactorNode } from './timestream';
 
 export class GameObject {
     upperLeftCorner: Point;
@@ -46,7 +47,15 @@ export class GameObject {
      * The number of seconds of in-game time that take place for each tick of
      * the game's internal clock.
      */
-    timeFactor: number = 1
+    individualTimeFactor: number = 1
+
+    /**
+     * The specific "timestream" this gameObject exists in. This is effectively
+     * a series of multipliers that determine how many seconds of in-game time
+     * this object experiences per world tick.
+     * @see TimeFactorNode for a full description.
+     */
+    timeChannel: TimeFactorNode;
 
     /**
      * The amount of base damage this GameObject can do to another GameObject
@@ -87,12 +96,30 @@ export class GameObject {
      * Or at least it should reference a central value as a multiplier so
      * I can adjust everything at once.
      */
-    public getTimeFactor() {
-        return this.timeFactor;
+    public getIndividualTimeFactor() {
+        return this.individualTimeFactor;
     }
 
-    public setTimeFactor(timeFactor: number) {
-        this.timeFactor = timeFactor;
+    public setIndividualTimeFactor(individualTimeFactor: number) {
+        this.individualTimeFactor = individualTimeFactor;
+    }
+
+    public getTimeChannel() {
+        return this.timeChannel;
+    }
+
+    public setTimeChannel(timeChannel: TimeFactorNode) {
+        this.timeChannel = timeChannel;
+    }
+
+    public getEffectiveTimeFactor() {
+        let factor = this.getIndividualTimeFactor();
+
+        if(this.timeChannel !== null && this.timeChannel !== undefined) {
+            factor = factor * this.timeChannel.getTimeFactor();
+        }
+
+        return factor;
     }
 
     public getContactDamage() {
@@ -135,14 +162,13 @@ export class GameObject {
     // TODO: Add projectiles!
     // TODO: script out other enemy actions besides moves, like firing projectiles.
 
-    takeNextMove(): void {
+    takeNextMove(): Projectile[] {
+        let createdProjectiles: Projectile[] = [];
         if(this.movementPattern.length < 0 || this.nextMoveIndex < 0) {
             // TODO: Throw or log an error here!
-            return;
+            console.error("takeNextMove() was called on an object without any movements planned or with a negative value for nextMoveIndex. It cannot be moved.");
+            return createdProjectiles;
         } else {
-            if(this.nextMoveIndex < 0) {
-                return;
-            }
 
             // TODO: Ensure currentMove.duration isn't 0 here...
 
@@ -151,7 +177,7 @@ export class GameObject {
 
             // Grab the current ratio of game time seconds to every tick of the game clock.
             // This will be the full amount of time in seconds of game time that will pass this tick.
-            let secondsLeftInCurrentTick = this.getTimeFactor();
+            let secondsLeftInCurrentTick = this.getEffectiveTimeFactor();
 
             while(secondsLeftInCurrentTick > 0) {
                 // If the nextMoveIndex refers to an item outside the bounds of the array, set it to the remainder looping back around again.
@@ -193,9 +219,27 @@ export class GameObject {
                 // Increase the time progressed into the current move by the amount of time spent here.
                 this.timeIntoCurrentMove = this.timeIntoCurrentMove + timeThatWillBeSpentInCurrentMovement;
 
+                // Move the GameObject.
+                /**
+                 * FIXME: This regenerates the bounding boxes every time is that an issue?
+                 *
+                 * Actually, I could use this. I could add the corners of this shape to a
+                 * collection and create a polygon that connects the outermost points of the
+                 * object as it moves in each step. If it moves eastwards three times over
+                 * the tick then it would be the bounding box of after the first move, with
+                 * its eastward edge extended out by two steps. I could then use these for
+                 * detecting collisions that _should_ happen between ticks (like if
+                 * everything is moving at 16x speed. I don't want enemy ships clipping
+                 * through the player's attacks). And this should be far less costly than
+                 * checking for collisions between everything after every fraction of a tick.
+                 */
+                this.shiftPosition(xAdjustment, yAdjustment);
+
+                createdProjectiles = createdProjectiles.concat(this.postMoveActions(timeThatWillBeSpentInCurrentMovement));
+
                 // If the current move has been completed
                 if(this.timeIntoCurrentMove >= currentMoveDuration) {
-                    if(currentMove.getRunOnce()) {
+                    if(currentMove.doesOnlyRunOnce()) {
                         // Remove the move that was just completed.
                         this.movementPattern.splice(this.nextMoveIndex, 1);
                     } else {
@@ -207,12 +251,13 @@ export class GameObject {
                     this.timeIntoCurrentMove = 0;
                 }
             }
-
-            // Move the GameObject.
-            this.shiftPosition(xAdjustment, yAdjustment);
-
-            // TODO: Perform any non-movement actions (like shooting) here.
         }
+
+        return createdProjectiles;
+    }
+
+    public postMoveActions(seconds: number) : Projectile[]  {
+        return [];
     }
 
     /**
@@ -293,7 +338,7 @@ export class Movement {
     // Measured in px, unless the canvas has been scaled up? (Well in that case we wouldn't care anyway, right?)
     xMovement: number;
     yMovement: number;
-    runOnce: boolean = false;
+    runOnlyOnce: boolean = false;
 
     /**
      * Length of in-game seconds this movement will take from start to finish.
@@ -306,19 +351,19 @@ export class Movement {
         this.duration = duration;
     }
 
-    public getRunOnce(): boolean {
-        return this.runOnce;
+    public doesOnlyRunOnce(): boolean {
+        return this.runOnlyOnce;
     }
 
-    public setRunOnce(runOnce: boolean) {
-        this.runOnce = runOnce;
+    public setRunOnlyOnce(runOnlyOnce: boolean) {
+        this.runOnlyOnce = runOnlyOnce;
     }
 }
 
 export class SingleMovement extends Movement {
     constructor(xMovement: number, yMovement: number, duration: number) {
         super(xMovement, yMovement, duration);
-        this.setRunOnce(true);
+        this.setRunOnlyOnce(true);
     }
 }
 
@@ -331,24 +376,28 @@ export class SingleMovement extends Movement {
  */
 export class SingleMoveGameObject extends GameObject {
     addMovement(nextMove: Movement) {
-        nextMove.setRunOnce(true);
+        nextMove.setRunOnlyOnce(true);
         this.movementPattern.push(nextMove);
     }
 
-    takeNextMove() {
+    // TODO: Determine if things other than projectiles should be returnable here.
+    // Maybe this should be a collection of GameObjects?
+    takeNextMove(): Projectile[] {
         // Execute the next movement.
-        super.takeNextMove();
+        let createdProjectiles: Projectile[] = super.takeNextMove();
 
         // In the event that an error caused nextMoveIndex to become less than zero, set it to zero here.
         if(this.nextMoveIndex < 0) {
             this.nextMoveIndex = 0;
         }
+
+        return createdProjectiles;
     }
 
     // TODO: Be careful with this one. It will completely delete any pre-scripted moves.
     // In the future it might be better to non-destructively insert blocks of moves.
     overwriteNextMove(nextMove: Movement) {
-        nextMove.setRunOnce(true);
+        nextMove.setRunOnlyOnce(true);
         this.movementPattern = [nextMove];
         this.nextMoveIndex = 0;
         this.timeIntoCurrentMove = 0;

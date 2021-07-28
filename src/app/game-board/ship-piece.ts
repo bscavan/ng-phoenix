@@ -93,25 +93,39 @@ export class ShipPiece extends SingleMoveGameObject {
     /**
      * The amount of game time that needs to pass after the ship creates a
      * projectile has been created before the ship can fire again.
+     * Note: This number must always be above 0. If it is not then 1 will be
+     * used instead.
      */
-    public cyclesDelayBetweenShots = 0;
+    public secondsDelayBetweenShots = 1;
 
     /**
      * The amount of game time that needs to pass until the next projectile can
      * be created. Should always be between maximumRateOfFire and 0.
      */
-    public cyclesUntilNextFire = 0;
+    public secondsUntilNextFire = 0;
 
     // This is only getting used on player ships. Is it worth keeping around?
     public fireProjectileOnNextTick: boolean = false;
 
-    public cycleGun(): Projectile | null {
-        if(this.cyclesUntilNextFire > 0) {
-            this.cyclesUntilNextFire--;
-            return null;
-        } else {
-            return this.createProjectile();
-        } 
+    public postMoveActions(seconds: number): Projectile[]  {
+        return this.cycleGun(seconds);
+    }
+
+    public cycleGun(seconds: number): Projectile[] {
+        let secondsDelay = Math.max(1, this.secondsDelayBetweenShots);
+        let projectilesFired: Projectile[] = [];
+        this.secondsUntilNextFire = this.secondsUntilNextFire - seconds;
+
+        // fire the gun until we're caught up.
+        while(this.secondsUntilNextFire <= 0) {
+            // fire the gun once.
+            projectilesFired.push(this.createProjectile());
+
+            // increase cyclesUntilNextFire so the next projectile won't be created until it is supposed to be.
+            this.secondsUntilNextFire = this.secondsUntilNextFire + secondsDelay;
+        }
+
+        return projectilesFired;
     }
 
     public shouldFireProjectileOnNextTick() {
@@ -123,7 +137,7 @@ export class ShipPiece extends SingleMoveGameObject {
      * etc. Standard guns could be instantiated and would save work.
      */
     public createProjectile() {
-        this.cyclesUntilNextFire = this.cyclesDelayBetweenShots;
+        // TODO: Center the projectile on the ship. Currently it's on the left side.
         return new Projectile(this.upperLeftCorner);
     }
 }
@@ -144,7 +158,6 @@ export class Highwind extends ShipPiece {
 
         super(upperLeftCorner, shipShapes, null);
         // Setting time and movement-determining values here.
-        this.setTimeFactor(1);
         this.baseMovementStep = 1;
         this.baseMovementDuration = 1;
         super.maximumHealth = Highwind.DEFAULT_MAX_HP;
@@ -152,9 +165,9 @@ export class Highwind extends ShipPiece {
         super.contactDamage = Highwind.DEFAULT_CONTACT_DAMAGE;
     }
 
-    public cycleGun(): Projectile | null {
+    public cycleGun(seconds: number): Projectile[] | null {
         this.fireProjectileOnNextTick = false;
-        return super.cycleGun();
+        return super.cycleGun(seconds);
     }
 }
 
@@ -237,7 +250,20 @@ export class EnemyProjectile extends Projectile {
     }
 }
 
-export class SimpleBlockHead extends ShipPiece {
+/*
+ * Here to make sure enemy movements don't get removed if addMovement(Movement)
+ * was used.
+ * TODO: Determine if there is a better way of handling this. (Probably
+ * something that involves not inheriting from SingleMoveGameObject.)
+ */
+export class EnemyShipPiece extends ShipPiece {
+    addMovement(nextMove: Movement) {
+        nextMove.setRunOnlyOnce(false);
+        this.movementPattern.push(nextMove);
+    }
+}
+
+export class SimpleBlockHead extends EnemyShipPiece {
     public static readonly DEFAULT_COLOR: string = "red";
     public static readonly DEFAULT_OUTLINE_COLOR: string = "red";
     public static readonly DEFAULT_MAX_HP = 3;
@@ -267,9 +293,9 @@ export class GunnerBlockHead extends SimpleBlockHead {
     constructor(upperLeftCorner: Point) {
         super(upperLeftCorner);
 
-        // GunnerBlockHeads are like SimpleBlockHeads, but they always attempt projectiles on every tick.
+        // GunnerBlockHeads are like SimpleBlockHeads, but they always attempt to fire projectiles on every tick.
         this.fireProjectileOnNextTick = true;
-        this.cyclesDelayBetweenShots = 0;
+        this.secondsDelayBetweenShots = 1;
     }
     // They are like SimpleBlockHeads, but they always fire projectiles on every tick.
     // public shouldFireProjectileOnNextTick() {
@@ -283,7 +309,6 @@ export class GunnerBlockHead extends SimpleBlockHead {
      */
     // What about enemies that explode on death?
     public createProjectile() {
-        this.cyclesUntilNextFire = this.cyclesDelayBetweenShots;
         return new EnemyProjectile(this.upperLeftCorner);
     }
 }
@@ -293,7 +318,7 @@ export class ComplexGunnerBlockHead extends SimpleBlockHead {
         super(upperLeftCorner);
 
         this.fireProjectileOnNextTick = true;
-        this.cyclesDelayBetweenShots = 3;
+        this.secondsDelayBetweenShots = 3;
     }
 
     // // They are like SimpleBlockHeads, but they always fire projectiles on every tick.
@@ -317,7 +342,6 @@ export class ComplexGunnerBlockHead extends SimpleBlockHead {
      */
     // What about enemies that explode on death?
     public createProjectile() {
-        this.cyclesUntilNextFire = this.cyclesDelayBetweenShots;
         return new EnemyProjectile(this.upperLeftCorner);
     }
 }
