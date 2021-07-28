@@ -175,10 +175,15 @@ export class GameBoardComponent implements OnInit {
     this.redrawCanvas();
   }
 
+  pauseGame() {
+    if(this.worldTimeChannel.timeModifier != 0) {
+      this.worldTimeChannel.timeModifier = 0;
+    } else {
+      this.worldTimeChannel.timeModifier = 1;
+    }
+  }
+
   /**
-   * TODO: Convert this to function on a global level.
-   * Don't make methods that require updating every GameObject individually.
-   *
    * TODO: Add a test to GameObject that mimics this, changing the timeFactor
    * from .5 to 1 three ticks in. Assert that the position is correct after
    * each tick.
@@ -186,6 +191,8 @@ export class GameBoardComponent implements OnInit {
    * FIXME: If you change the enemy speed twice in a row, before a tick happens,
    * it's possible to get an extra move out of the gameObject. Need to experiment
    * with this further...
+   * Also, even if you don't mess up the movements, it's possible to get the
+   * projectiles off kilter. 
    */
   public changeEnemySpeed() {
     if(this.enemyShipsTimeChannel !== undefined && this.enemyShipsTimeChannel !== null) {
